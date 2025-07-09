@@ -1,0 +1,49 @@
+/* Tool Call component styles */
+.tool-call {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  background-color: #f0f0f0;
+  border: 1px solid #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  color: #333;
+  font-size: 13px;
+}
+
+.tool-call.system {
+    background-color: #e8f4fd;
+    border-color: #d1e9fc;
+    color: #31708f;
+}
+
+.tool-call .spinner {
+  margin-right: 8px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ccc;
+  border-top-color: #333;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.tool-call .icon {
+    margin-right: 8px;
+}
+
+.tool-call-name {
+  font-weight: 600;
+}
+
+.tool-call-status {
+    margin-left: auto;
+    font-style: italic;
+    color: #666;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+} 

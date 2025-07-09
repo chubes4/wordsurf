@@ -1,0 +1,521 @@
+# Function Calling Implementation Guide
+
+## Overview
+
+This document outlines the implementation of OpenAI function calling for Wordsurf, enabling the AI agent to manipulate WordPress content directly through structured function calls.
+
+## Core Function Definitions
+
+### 1. Update Post Content
+
+```php
+$functions = [
+    [
+        "type" => "function",
+        "name" => "update_post_content",
+        "description" => "Update the content of the current WordPress post being edited.",
+        "strict" => true,
+        "parameters" => [
+            "type" => "object",
+            "properties" => [
+                "content" => [
+                    "type" => "string",
+                    "description" => "The new content for the post. Can include HTML tags and formatting."
+                ],
+                "append" => [
+                    "type" => ["boolean", "null"],
+                    "description" => "If true, append content to existing post. If false or null, replace entire content."
+                ]
+            ],
+            "required" => ["content"],
+            "additionalProperties" => false
+        ]
+    ]
+];
+```
+
+### 2. Assign Categories
+
+```php
+$functions = [
+    [
+        "type" => "function",
+        "name" => "assign_categories",
+        "description" => "Assign categories to the current WordPress post.",
+        "strict" => true,
+        "parameters" => [
+            "type" => "object",
+            "properties" => [
+                "categories" => [
+                    "type" => "array",
+                    "items" => [
+                        "type" => "string"
+                    ],
+                    "description" => "Array of category names to assign to the post."
+                ],
+                "replace" => [
+                    "type" => ["boolean", "null"],
+                    "description" => "If true, replace all existing categories. If false or null, add to existing categories."
+                ]
+            ],
+            "required" => ["categories"],
+            "additionalProperties" => false
+        ]
+    ]
+];
+```
+
+### 3. Assign Tags
+
+```php
+$functions = [
+    [
+        "type" => "function",
+        "name" => "assign_tags",
+        "description" => "Assign tags to the current WordPress post.",
+        "strict" => true,
+        "parameters" => [
+            "type" => "object",
+            "properties" => [
+                "tags" => [
+                    "type" => "array",
+                    "items" => [
+                        "type" => "string"
+                    ],
+                    "description" => "Array of tag names to assign to the post."
+                ],
+                "replace" => [
+                    "type" => ["boolean", "null"],
+                    "description" => "If true, replace all existing tags. If false or null, add to existing tags."
+                ]
+            ],
+            "required" => ["tags"],
+            "additionalProperties" => false
+        ]
+    ]
+];
+```
+
+### 4. Publish Post
+
+```php
+$functions = [
+    [
+        "type" => "function",
+        "name" => "publish_post",
+        "description" => "Publish the current WordPress post.",
+        "strict" => true,
+        "parameters" => [
+            "type" => "object",
+            "properties" => [
+                "publish_date" => [
+                    "type" => ["string", "null"],
+                    "description" => "Optional publish date in Y-m-d H:i:s format. If null, publish immediately."
+                ]
+            ],
+            "required" => [],
+            "additionalProperties" => false
+        ]
+    ]
+];
+```
+
+### 5. Save Draft
+
+```php
+$functions = [
+    [
+        "type" => "function",
+        "name" => "save_draft",
+        "description" => "Save the current WordPress post as a draft.",
+        "strict" => true,
+        "parameters" => [
+            "type" => "object",
+            "properties" => [],
+            "required" => [],
+            "additionalProperties" => false
+        ]
+    ]
+];
+```
+
+## Implementation Flow
+
+### 1. API Request Structure
+
+```php
+class OpenAI_Handler {
+    public function send_request($user_message, $current_post_context) {
+        $tools = $this->get_function_definitions();
+        
+        $input_messages = [
+            [
+                "role" => "developer",
+                "content" => $this->get_system_prompt()
+            ],
+            [
+                "role" => "user", 
+                "content" => $user_message
+            ]
+        ];
+        
+        // Add current post context
+        if ($current_post_context) {
+            $input_messages[] = [
+                "role" => "user",
+                "content" => "Current post context: " . json_encode($current_post_context)
+            ];
+        }
+        
+        $response = $this->client->responses->create([
+            "model" => "gpt-4.1",
+            "input" => $input_messages,
+            "tools" => $tools,
+            "tool_choice" => "auto",
+            "stream" => true
+        ]);
+        
+        return $response;
+    }
+}
+```
+
+### 2. Function Call Handling
+
+```php
+class Function_Call_Handler {
+    public function handle_function_calls($response) {
+        $results = [];
+        
+        foreach ($response->output as $output_item) {
+            if ($output_item->type === "function_call") {
+                $function_name = $output_item->name;
+                $arguments = json_decode($output_item->arguments, true);
+                $call_id = $output_item->call_id;
+                
+                // Execute the function
+                $result = $this->execute_function($function_name, $arguments);
+                
+                $results[] = [
+                    "type" => "function_call_output",
+                    "call_id" => $call_id,
+                    "output" => $result
+                ];
+            }
+        }
+        
+        return $results;
+    }
+    
+    private function execute_function($name, $args) {
+        switch ($name) {
+            case "update_post_content":
+                return $this->update_post_content($args);
+            case "assign_categories":
+                return $this->assign_categories($args);
+            case "assign_tags":
+                return $this->assign_tags($args);
+            case "publish_post":
+                return $this->publish_post($args);
+            case "save_draft":
+                return $this->save_draft($args);
+            default:
+                return "Error: Unknown function '$name'";
+        }
+    }
+}
+```
+
+### 3. WordPress Function Implementation
+
+```php
+class WordPress_Functions {
+    private $current_post_id;
+    
+    public function __construct($post_id) {
+        $this->current_post_id = $post_id;
+    }
+    
+    public function update_post_content($args) {
+        $content = $args['content'];
+        $append = $args['append'] ?? false;
+        
+        if ($append) {
+            $existing_content = get_post_field('post_content', $this->current_post_id);
+            $content = $existing_content . "\n\n" . $content;
+        }
+        
+        $result = wp_update_post([
+            'ID' => $this->current_post_id,
+            'post_content' => $content
+        ]);
+        
+        if ($result) {
+            return "Success: Post content updated";
+        } else {
+            return "Error: Failed to update post content";
+        }
+    }
+    
+    public function assign_categories($args) {
+        $categories = $args['categories'];
+        $replace = $args['replace'] ?? false;
+        
+        if ($replace) {
+            wp_set_object_terms($this->current_post_id, $categories, 'category');
+        } else {
+            wp_set_object_terms($this->current_post_id, $categories, 'category', true);
+        }
+        
+        return "Success: Categories assigned to post";
+    }
+    
+    public function assign_tags($args) {
+        $tags = $args['tags'];
+        $replace = $args['replace'] ?? false;
+        
+        if ($replace) {
+            wp_set_object_terms($this->current_post_id, $tags, 'post_tag');
+        } else {
+            wp_set_object_terms($this->current_post_id, $tags, 'post_tag', true);
+        }
+        
+        return "Success: Tags assigned to post";
+    }
+    
+    public function publish_post($args) {
+        $publish_date = $args['publish_date'] ?? null;
+        
+        $post_data = [
+            'ID' => $this->current_post_id,
+            'post_status' => 'publish'
+        ];
+        
+        if ($publish_date) {
+            $post_data['post_date'] = $publish_date;
+        }
+        
+        $result = wp_update_post($post_data);
+        
+        if ($result) {
+            return "Success: Post published";
+        } else {
+            return "Error: Failed to publish post";
+        }
+    }
+    
+    public function save_draft($args) {
+        $result = wp_update_post([
+            'ID' => $this->current_post_id,
+            'post_status' => 'draft'
+        ]);
+        
+        if ($result) {
+            return "Success: Post saved as draft";
+        } else {
+            return "Error: Failed to save draft";
+        }
+    }
+}
+```
+
+## System Prompt
+
+```php
+private function get_system_prompt() {
+    return "
+# Identity
+
+You are Wordsurf, an AI assistant that helps users create and edit WordPress content. You operate within the WordPress post editor and can manipulate the current post directly.
+
+# Instructions
+
+* You can only work with the current post that the user is editing
+* Use function calling to perform actions on the post
+* Always provide helpful feedback after performing actions
+* Be conversational and helpful in your responses
+* If you need more information to complete a task, ask the user
+
+# Available Actions
+
+You can:
+- Update post content (replace or append)
+- Assign categories to the post
+- Assign tags to the post  
+- Publish the post
+- Save the post as draft
+
+# Response Format
+
+After performing actions, provide a brief summary of what you did and any relevant information for the user.
+";
+}
+```
+
+## Error Handling
+
+### 1. Function Call Errors
+
+```php
+private function execute_function($name, $args) {
+    try {
+        // Validate user capabilities
+        if (!$this->check_user_capabilities($name)) {
+            return "Error: Insufficient permissions to perform this action";
+        }
+        
+        // Validate arguments
+        if (!$this->validate_arguments($name, $args)) {
+            return "Error: Invalid arguments provided";
+        }
+        
+        // Execute function
+        $result = $this->wordpress_functions->$name($args);
+        
+        return $result;
+        
+    } catch (Exception $e) {
+        error_log("Function call error: " . $e->getMessage());
+        return "Error: " . $e->getMessage();
+    }
+}
+```
+
+### 2. Security Validation
+
+```php
+private function check_user_capabilities($function_name) {
+    $capability_map = [
+        'update_post_content' => 'edit_posts',
+        'assign_categories' => 'edit_posts',
+        'assign_tags' => 'edit_posts',
+        'publish_post' => 'publish_posts',
+        'save_draft' => 'edit_posts'
+    ];
+    
+    $required_capability = $capability_map[$function_name] ?? 'edit_posts';
+    return current_user_can($required_capability);
+}
+```
+
+## Streaming Implementation
+
+### 1. Real-time Function Call Display
+
+```javascript
+// Frontend JavaScript for handling streaming responses
+function handleStreamingResponse(stream) {
+    for await (const event of stream) {
+        if (event.type === 'response.output_item.added') {
+            if (event.item.type === 'function_call') {
+                // Show function call in UI
+                displayFunctionCall(event.item);
+            }
+        } else if (event.type === 'response.function_call_arguments.delta') {
+            // Update function arguments in real-time
+            updateFunctionArguments(event.item_id, event.delta);
+        } else if (event.type === 'response.function_call_arguments.done') {
+            // Function call complete, execute it
+            executeFunctionCall(event.item);
+        }
+    }
+}
+```
+
+### 2. UI Feedback
+
+```javascript
+function displayFunctionCall(functionCall) {
+    const messageElement = document.createElement('div');
+    messageElement.className = 'agent-function-call';
+    messageElement.innerHTML = `
+        <div class="function-name">${functionCall.name}</div>
+        <div class="function-arguments">${functionCall.arguments}</div>
+    `;
+    
+    chatContainer.appendChild(messageElement);
+}
+```
+
+## Testing Strategy
+
+### 1. Function Call Testing
+
+```php
+class Function_Call_Test {
+    public function test_update_post_content() {
+        $args = [
+            'content' => 'Test content update',
+            'append' => false
+        ];
+        
+        $result = $this->wordpress_functions->update_post_content($args);
+        
+        $this->assertEquals("Success: Post content updated", $result);
+        
+        $updated_content = get_post_field('post_content', $this->test_post_id);
+        $this->assertEquals('Test content update', $updated_content);
+    }
+}
+```
+
+### 2. Integration Testing
+
+```php
+class Integration_Test {
+    public function test_complete_workflow() {
+        // Test user message -> function call -> result -> response
+        $user_message = "Add a conclusion paragraph to this post";
+        
+        $response = $this->openai_handler->send_request($user_message, $this->post_context);
+        $function_calls = $this->function_handler->handle_function_calls($response);
+        
+        $this->assertNotEmpty($function_calls);
+        $this->assertEquals('update_post_content', $function_calls[0]['name']);
+    }
+}
+```
+
+## Performance Considerations
+
+### 1. Caching
+
+- Cache function definitions to avoid regenerating on each request
+- Cache current post context to reduce database queries
+- Implement response caching for common operations
+
+### 2. Rate Limiting
+
+- Implement rate limiting for OpenAI API calls
+- Add user-specific rate limiting for function calls
+- Monitor and log function call usage
+
+### 3. Error Recovery
+
+- Implement retry logic for failed function calls
+- Provide fallback options for common errors
+- Log detailed error information for debugging
+
+## Security Considerations
+
+### 1. Input Validation
+
+- Validate all function arguments before execution
+- Sanitize content before updating posts
+- Check user permissions for each function
+
+### 2. Nonce Validation
+
+- Require valid nonces for all AJAX requests
+- Implement nonce validation in function handlers
+- Regenerate nonces after successful operations
+
+### 3. Capability Checking
+
+- Verify user capabilities before function execution
+- Implement role-based access control
+- Log all function calls for audit purposes
+description:
+globs:
+alwaysApply: false
+---

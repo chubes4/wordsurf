@@ -1,0 +1,127 @@
+<?php
+/**
+ * Plugin Name:       Wordsurf
+ * Plugin URI:        https://chubes.net/wordsurf
+ * Description:       An AI agent for WordPress content creation and manipulation.
+ * Version:           0.1.0
+ * Author:            Chris Huber
+ * Author URI:        https://chubes.net
+ * License:           GPL v2 or later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain:       wordsurf
+ * Domain Path:       /languages
+ */
+
+// If this file is called directly, abort.
+if ( ! defined( 'WPINC' ) ) {
+	die;
+}
+
+/**
+ * Define constants.
+ */
+define( 'WORDSURF_VERSION', '0.1.0' );
+define( 'WORDSURF_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'WORDSURF_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+
+/**
+ * The code that runs during plugin activation.
+ */
+function activate_wordsurf() {
+    // Activation logic here.
+}
+register_activation_hook( __FILE__, 'activate_wordsurf' );
+
+/**
+ * The code that runs during plugin deactivation.
+ */
+function deactivate_wordsurf() {
+    // Deactivation logic here.
+}
+register_deactivation_hook( __FILE__, 'deactivate_wordsurf' );
+
+/**
+ * The core plugin class.
+ */
+final class Wordsurf {
+
+    /**
+     * The single instance of the class.
+     *
+     * @var Wordsurf
+     */
+    private static $instance;
+
+    /**
+     * Main Wordsurf Instance.
+     *
+     * Ensures only one instance of Wordsurf is loaded or can be loaded.
+     *
+     * @static
+     * @return Wordsurf - Main instance.
+     */
+    public static function instance() {
+        if ( is_null( self::$instance ) ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    /**
+     * Wordsurf Constructor.
+     */
+    public function __construct() {
+        $this->includes();
+        $this->init_hooks();
+    }
+
+    /**
+     * Include required core files.
+     */
+    private function includes() {
+        // Core
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-agent-core.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-chat-handler.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-system-prompt.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-tool-manager.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/context/class-context-manager.php';
+
+        // API
+        require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-openai-client.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-rest-api.php';
+
+        // Admin
+        require_once WORDSURF_PLUGIN_DIR . 'includes/admin/class-admin.php';
+    }
+
+    /**
+     * Hook into actions and filters.
+     */
+    private function init_hooks() {
+        // Initialize Chat Handler (this registers AJAX hooks)
+        new Wordsurf_Chat_Handler();
+        
+        // Initialize REST API
+        new Wordsurf_REST_API();
+        
+        if ( is_admin() ) {
+            new Wordsurf_Admin();
+        }
+    }
+}
+
+/**
+ * Begins execution of the plugin.
+ *
+ * Since everything within the plugin is registered via hooks,
+ * then kicking off the plugin from this point in the file does
+ * not affect the page life cycle.
+ *
+ * @since    0.1.0
+ */
+function wordsurf() {
+    return Wordsurf::instance();
+}
+
+// Get Wordsurf running.
+wordsurf(); 

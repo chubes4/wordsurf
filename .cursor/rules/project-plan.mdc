@@ -1,0 +1,518 @@
+---
+alwaysApply: true
+---
+
+# Wordsurf Development Plan
+
+## Immediate (Next Steps)
+
+1. **Complete OpenAI Function Calling Implementation** ✅
+   - ✅ Update tool schemas to follow OpenAI best practices with strict mode
+   - ✅ Implement proper function calling flow (tool definition → model decision → execution → result handling)
+   - ✅ Add streaming function call detection and handling
+   - ✅ Update read_post tool with proper schema and validation
+   - ✅ Refactor base tool class to eliminate redundant schema code
+   - ✅ Test function calling with streaming responses
+   - ✅ Add error handling for function call failures
+   - ✅ Implement agentic loop with follow-up API calls
+
+2. **Enhance Agent Core**
+   - Add tool calling coordination to agent core
+   - Implement conversation state management
+   - Add context window management for large posts
+   - Create tool result handling and display
+
+3. **Add Real-time Tool Feedback**
+   - Display tool execution status in chat interface
+   - Show tool results and errors in real-time
+   - Add visual feedback for tool operations
+   - Handle streaming tool responses properly
+
+4. **Security and Error Handling**
+   - Add comprehensive input sanitization
+   - Implement rate limiting and abuse prevention
+   - Add detailed logging for debugging
+   - Create user-friendly error messages
+   - Add capability checking for all operations
+
+## High Priority
+
+1. **Modular Tool Development**
+   - ✅ Implement BaseTool architecture for extensible tool system
+   - ✅ Create read_post tool with proper OpenAI schema
+   - ✅ Refactor base tool class to eliminate redundant schema code
+   - Add additional tools (update_post, create_post, delete_post, etc.)
+   - Add tool orchestration in agent core
+   - Implement tool result handling and display
+   - Add conversation state management
+
+2. **Enhanced Context Management**
+   - Implement conversation memory and context preservation
+   - Add basic post content analysis for suggestions
+   - Create simple internal linking suggestions
+   - Build content optimization recommendations
+   - Add context window management for large posts
+
+3. **Security Enhancements**
+   - Implement comprehensive input sanitization
+   - Add rate limiting and abuse prevention
+   - Create detailed logging for debugging
+   - Add user capability checking for all operations
+   - Implement response caching for performance
+
+4. **Agent Core Enhancement**
+   - Enhance `includes/agent/core/class-agent-core.php` with tool orchestration
+   - Implement conversation state management
+   - Add context management system
+   - Create tool calling coordinator
+   - Add agent personality and behavior settings
+
+5. **MCP Server Foundation (Based on WordPress MCP Analysis)**
+   - Research Model Context Protocol implementation
+   - Create basic MCP server structure
+   - Implement JWT authentication system
+   - Add core WordPress tools exposure
+   - Create dual transport support (STDIO and HTTP)
+   - Add JSON-RPC 2.0 compliant endpoints
+
+## Medium Priority
+
+1. **Advanced Content Operations**
+   - Cross-post linking and relationship management
+   - Bulk taxonomy operations
+   - Content optimization suggestions
+   - SEO integration and meta tag management
+   - Image analysis and optimization suggestions
+   - PDF import and content extraction (like AI Engine)
+
+2. **User Experience Enhancements**
+   - Customizable agent personality/behavior
+   - Conversation history and context preservation
+   - Keyboard shortcuts and quick commands
+   - Mobile-responsive chat interface
+   - Voice-to-text integration for hands-free operation
+   - AI Forms integration (like AI Engine)
+
+3. **Performance and Scalability**
+   - Database query optimization
+   - Caching for frequently accessed data
+   - Lazy loading for large datasets
+   - Memory usage optimization
+   - Multi-site support and optimization
+
+4. **Advanced Error Handling**
+   - Graceful failure when AI makes invalid requests
+   - User-friendly error messages with suggestions
+   - Automatic retry mechanisms with exponential backoff
+   - Fallback options for failed operations
+   - Detailed error logging and debugging tools
+
+5. **MCP Server Enhancement**
+   - Implement comprehensive WordPress tools
+   - Add custom resource types
+   - Create prompt templates
+   - Add external MCP server connections
+   - Implement advanced authentication features
+
+## Low Priority
+
+1. **Multi-model Support**
+   - User-selectable AI models (Claude, GPT-4, etc.)
+   - Model-specific optimization
+   - Cost tracking and usage analytics
+   - Model performance comparison
+   - OpenRouter integration for model flexibility
+
+2. **Advanced AI Features**
+   - Image generation and manipulation
+   - Voice-to-text integration
+   - Multi-language support
+   - Custom function definitions
+   - Advanced MCP server implementation
+
+3. **Developer and Admin Tools**
+   - Debug mode and logging
+   - API response inspection
+   - Function call tracing
+   - Performance monitoring
+   - Admin dashboard with usage analytics
+
+4. **Integration Ecosystem**
+   - Third-party plugin compatibility
+   - Theme integration hooks
+   - External API connections
+   - Social media integration
+   - E-commerce platform integration
+
+## Ideas for Future
+
+1. **Analytics and SEO Integration**
+   - Google Search Console API integration for ranking data
+   - Google Analytics API for content performance insights
+   - Pinterest API for pin data and trending content
+   - SEO optimization suggestions based on real data
+   - Content performance tracking and recommendations
+   - Competitive analysis and keyword insights
+
+2. **Command Line Integration**
+   - WP-CLI commands for agent operations
+   - Batch processing capabilities
+   - Automated content workflows
+   - Server-side agent operations
+
+3. **Source Code Analysis**
+   - Code-aware operations for developers
+   - Theme and plugin code analysis
+   - Custom function generation
+   - Code optimization suggestions
+
+4. **Advanced AI Capabilities**
+   - Multi-modal content creation (text, images, video)
+   - Predictive content suggestions
+   - User behavior analysis
+   - Personalized content recommendations
+
+5. **Enterprise Features**
+   - Multi-site management
+   - Team collaboration tools
+   - Advanced security and compliance
+   - Custom deployment options
+
+6. **MCP Ecosystem Integration**
+   - External MCP server connections
+   - Claude Desktop integration
+   - VS Code MCP extension support
+   - Custom MCP client development
+   - Advanced AI agent workflows
+
+## Technical Research Needed
+
+1. **OpenAI Function Calling** ✅
+   - ✅ Complete function calling implementation patterns
+   - ✅ Error handling for function call failures
+   - ✅ Response parsing and validation
+   - ✅ Security considerations for function execution
+   - ✅ Strict mode implementation
+   - ✅ Proper tool schema design
+
+2. **WordPress Gutenberg Development**
+   - Custom sidebar panel styling
+   - Block editor integration patterns
+   - JavaScript API documentation
+   - State management best practices
+
+3. **Real-time Communication**
+   - WebSocket vs Server-Sent Events
+   - WordPress WebSocket integration
+   - Performance implications
+   - Security considerations
+
+4. **CSS Framework Integration**
+   - WordPress admin styling patterns
+   - Gutenberg component styling
+   - Responsive design for sidebar
+   - Modern UI/UX best practices
+
+5. **Model Context Protocol**
+   - MCP specification and implementation
+   - JWT authentication patterns
+   - Transport protocol options
+   - Tool and resource definitions
+   - External MCP server integration
+
+## Key Learnings from AI Engine and WordPress MCP
+
+### From AI Engine:
+- **MCP Integration**: AI Engine has excellent MCP implementation that allows external AI agents to control WordPress
+- **Function Calling**: Robust function calling with strict mode and comprehensive error handling
+- **Streaming Responses**: Real-time communication with streaming support
+- **Context Management**: Advanced context window management for large content
+- **Security**: Comprehensive security with role-based access and banned words
+- **Extensibility**: Plugin ecosystem integration with other Meow Apps plugins
+
+### From WordPress MCP:
+- **Dual Transport**: STDIO and HTTP-based (Streamable) transports for flexibility
+- **JWT Authentication**: Enterprise-grade authentication system
+- **JSON-RPC 2.0**: Standardized API for AI agent interactions
+- **Extensible Architecture**: Custom tools, resources, and prompts support
+- **Security**: Multi-layer authentication and audit logging
+- **Testing**: Comprehensive test suite with 200+ test cases
+
+### Implementation Strategy:
+1. **Phase 1**: Complete streaming chat foundation and modular tool architecture (current)
+2. **Phase 2**: Enhanced context management and tool orchestration
+3. **Phase 3**: MCP server implementation for external AI agent support
+4. **Phase 4**: Advanced features and ecosystem integration
+
+## Agent Tool Architecture (Current Implementation)
+
+- **Agent core** (`Wordsurf_Agent_Core`) is responsible for message preparation, system prompts, and calling the API handler.
+- **API handler** (`Wordsurf_OpenAI`) is a pure HTTP client: it only POSTs the body it is given, with no knowledge of tools, prompts, or business logic.
+- **REST API handler** (`Wordsurf_REST_API`) is a minimal streaming proxy that forwards requests to OpenAI and streams responses back.
+- **Frontend** (`WordsurfChatStream`) handles real-time streaming display and user interaction.
+- **Tools** will be modular PHP classes in `includes/agent/core/tools/`, each extending a `Wordsurf_BaseTool` class (planned).
+- **Extensibility**: New tools can be added as new classes, and the agent core can route tool calls as needed.
+
+### Immediate Next Steps
+
+- Implement `Wordsurf_BaseTool` class with standard interface (`get_name`, `execute`).
+- Create `ReadPostTool` as the first modular tool implementation.
+- Enhance agent core to orchestrate tool execution and handle tool results.
+- Integrate tool results with the streaming chat interface.
+# Wordsurf Development Plan
+
+## Immediate (Next Steps)
+
+1. **Complete OpenAI Function Calling Implementation** ✅
+   - ✅ Update tool schemas to follow OpenAI best practices with strict mode
+   - ✅ Implement proper function calling flow (tool definition → model decision → execution → result handling)
+   - ✅ Add streaming function call detection and handling
+   - ✅ Update read_post tool with proper schema and validation
+   - ✅ Refactor base tool class to eliminate redundant schema code
+   - ✅ Test function calling with streaming responses
+   - ✅ Add error handling for function call failures
+   - ✅ Implement agentic loop with follow-up API calls
+
+2. **Enhance Agent Core**
+   - Add tool calling coordination to agent core
+   - Implement conversation state management
+   - Add context window management for large posts
+   - Create tool result handling and display
+
+3. **Add Real-time Tool Feedback**
+   - Display tool execution status in chat interface
+   - Show tool results and errors in real-time
+   - Add visual feedback for tool operations
+   - Handle streaming tool responses properly
+
+4. **Security and Error Handling**
+   - Add comprehensive input sanitization
+   - Implement rate limiting and abuse prevention
+   - Add detailed logging for debugging
+   - Create user-friendly error messages
+   - Add capability checking for all operations
+
+## High Priority
+
+1. **Modular Tool Development**
+   - ✅ Implement BaseTool architecture for extensible tool system
+   - ✅ Create read_post tool with proper OpenAI schema
+   - ✅ Refactor base tool class to eliminate redundant schema code
+   - Add additional tools (update_post, create_post, delete_post, etc.)
+   - Add tool orchestration in agent core
+   - Implement tool result handling and display
+   - Add conversation state management
+
+2. **Enhanced Context Management**
+   - Implement conversation memory and context preservation
+   - Add basic post content analysis for suggestions
+   - Create simple internal linking suggestions
+   - Build content optimization recommendations
+   - Add context window management for large posts
+
+3. **Security Enhancements**
+   - Implement comprehensive input sanitization
+   - Add rate limiting and abuse prevention
+   - Create detailed logging for debugging
+   - Add user capability checking for all operations
+   - Implement response caching for performance
+
+4. **Agent Core Enhancement**
+   - Enhance `includes/agent/core/class-agent-core.php` with tool orchestration
+   - Implement conversation state management
+   - Add context management system
+   - Create tool calling coordinator
+   - Add agent personality and behavior settings
+
+5. **MCP Server Foundation (Based on WordPress MCP Analysis)**
+   - Research Model Context Protocol implementation
+   - Create basic MCP server structure
+   - Implement JWT authentication system
+   - Add core WordPress tools exposure
+   - Create dual transport support (STDIO and HTTP)
+   - Add JSON-RPC 2.0 compliant endpoints
+
+## Medium Priority
+
+1. **Advanced Content Operations**
+   - Cross-post linking and relationship management
+   - Bulk taxonomy operations
+   - Content optimization suggestions
+   - SEO integration and meta tag management
+   - Image analysis and optimization suggestions
+   - PDF import and content extraction (like AI Engine)
+
+2. **User Experience Enhancements**
+   - Customizable agent personality/behavior
+   - Conversation history and context preservation
+   - Keyboard shortcuts and quick commands
+   - Mobile-responsive chat interface
+   - Voice-to-text integration for hands-free operation
+   - AI Forms integration (like AI Engine)
+
+3. **Performance and Scalability**
+   - Database query optimization
+   - Caching for frequently accessed data
+   - Lazy loading for large datasets
+   - Memory usage optimization
+   - Multi-site support and optimization
+
+4. **Advanced Error Handling**
+   - Graceful failure when AI makes invalid requests
+   - User-friendly error messages with suggestions
+   - Automatic retry mechanisms with exponential backoff
+   - Fallback options for failed operations
+   - Detailed error logging and debugging tools
+
+5. **MCP Server Enhancement**
+   - Implement comprehensive WordPress tools
+   - Add custom resource types
+   - Create prompt templates
+   - Add external MCP server connections
+   - Implement advanced authentication features
+
+## Low Priority
+
+1. **Multi-model Support**
+   - User-selectable AI models (Claude, GPT-4, etc.)
+   - Model-specific optimization
+   - Cost tracking and usage analytics
+   - Model performance comparison
+   - OpenRouter integration for model flexibility
+
+2. **Advanced AI Features**
+   - Image generation and manipulation
+   - Voice-to-text integration
+   - Multi-language support
+   - Custom function definitions
+   - Advanced MCP server implementation
+
+3. **Developer and Admin Tools**
+   - Debug mode and logging
+   - API response inspection
+   - Function call tracing
+   - Performance monitoring
+   - Admin dashboard with usage analytics
+
+4. **Integration Ecosystem**
+   - Third-party plugin compatibility
+   - Theme integration hooks
+   - External API connections
+   - Social media integration
+   - E-commerce platform integration
+
+## Ideas for Future
+
+1. **Analytics and SEO Integration**
+   - Google Search Console API integration for ranking data
+   - Google Analytics API for content performance insights
+   - Pinterest API for pin data and trending content
+   - SEO optimization suggestions based on real data
+   - Content performance tracking and recommendations
+   - Competitive analysis and keyword insights
+
+2. **Command Line Integration**
+   - WP-CLI commands for agent operations
+   - Batch processing capabilities
+   - Automated content workflows
+   - Server-side agent operations
+
+3. **Source Code Analysis**
+   - Code-aware operations for developers
+   - Theme and plugin code analysis
+   - Custom function generation
+   - Code optimization suggestions
+
+4. **Advanced AI Capabilities**
+   - Multi-modal content creation (text, images, video)
+   - Predictive content suggestions
+   - User behavior analysis
+   - Personalized content recommendations
+
+5. **Enterprise Features**
+   - Multi-site management
+   - Team collaboration tools
+   - Advanced security and compliance
+   - Custom deployment options
+
+6. **MCP Ecosystem Integration**
+   - External MCP server connections
+   - Claude Desktop integration
+   - VS Code MCP extension support
+   - Custom MCP client development
+   - Advanced AI agent workflows
+
+## Technical Research Needed
+
+1. **OpenAI Function Calling** ✅
+   - ✅ Complete function calling implementation patterns
+   - ✅ Error handling for function call failures
+   - ✅ Response parsing and validation
+   - ✅ Security considerations for function execution
+   - ✅ Strict mode implementation
+   - ✅ Proper tool schema design
+
+2. **WordPress Gutenberg Development**
+   - Custom sidebar panel styling
+   - Block editor integration patterns
+   - JavaScript API documentation
+   - State management best practices
+
+3. **Real-time Communication**
+   - WebSocket vs Server-Sent Events
+   - WordPress WebSocket integration
+   - Performance implications
+   - Security considerations
+
+4. **CSS Framework Integration**
+   - WordPress admin styling patterns
+   - Gutenberg component styling
+   - Responsive design for sidebar
+   - Modern UI/UX best practices
+
+5. **Model Context Protocol**
+   - MCP specification and implementation
+   - JWT authentication patterns
+   - Transport protocol options
+   - Tool and resource definitions
+   - External MCP server integration
+
+## Key Learnings from AI Engine and WordPress MCP
+
+### From AI Engine:
+- **MCP Integration**: AI Engine has excellent MCP implementation that allows external AI agents to control WordPress
+- **Function Calling**: Robust function calling with strict mode and comprehensive error handling
+- **Streaming Responses**: Real-time communication with streaming support
+- **Context Management**: Advanced context window management for large content
+- **Security**: Comprehensive security with role-based access and banned words
+- **Extensibility**: Plugin ecosystem integration with other Meow Apps plugins
+
+### From WordPress MCP:
+- **Dual Transport**: STDIO and HTTP-based (Streamable) transports for flexibility
+- **JWT Authentication**: Enterprise-grade authentication system
+- **JSON-RPC 2.0**: Standardized API for AI agent interactions
+- **Extensible Architecture**: Custom tools, resources, and prompts support
+- **Security**: Multi-layer authentication and audit logging
+- **Testing**: Comprehensive test suite with 200+ test cases
+
+### Implementation Strategy:
+1. **Phase 1**: Complete streaming chat foundation and modular tool architecture (current)
+2. **Phase 2**: Enhanced context management and tool orchestration
+3. **Phase 3**: MCP server implementation for external AI agent support
+4. **Phase 4**: Advanced features and ecosystem integration
+
+## Agent Tool Architecture (Current Implementation)
+
+- **Agent core** (`Wordsurf_Agent_Core`) is responsible for message preparation, system prompts, and calling the API handler.
+- **API handler** (`Wordsurf_OpenAI`) is a pure HTTP client: it only POSTs the body it is given, with no knowledge of tools, prompts, or business logic.
+- **REST API handler** (`Wordsurf_REST_API`) is a minimal streaming proxy that forwards requests to OpenAI and streams responses back.
+- **Frontend** (`WordsurfChatStream`) handles real-time streaming display and user interaction.
+- **Tools** will be modular PHP classes in `includes/agent/core/tools/`, each extending a `Wordsurf_BaseTool` class (planned).
+- **Extensibility**: New tools can be added as new classes, and the agent core can route tool calls as needed.
+
+### Immediate Next Steps
+
+- Implement `Wordsurf_BaseTool` class with standard interface (`get_name`, `execute`).
+- Create `ReadPostTool` as the first modular tool implementation.
+- Enhance agent core to orchestrate tool execution and handle tool results.
+- Integrate tool results with the streaming chat interface.

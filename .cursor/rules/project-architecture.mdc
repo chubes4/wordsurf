@@ -1,0 +1,276 @@
+# Wordsurf - WordPress AI Agent Plugin
+
+## Project Overview
+
+Wordsurf is a specialized WordPress plugin that integrates an AI agent directly into the WordPress post editor (Gutenberg), providing a conversational content creation and editing experience. Unlike general AI platforms, Wordsurf focuses specifically on content manipulation within the post editor, offering context-aware database operations, real-time content editing, and intelligent internal linking through a native Gutenberg sidebar interface.
+
+## Core Philosophy
+
+- **Native Gutenberg Integration**: Conversational AI within the post editor sidebar
+- **Content-Focused**: Specialized for content creation, editing, and optimization
+- **Current Post Context**: Direct access to post data from Gutenberg editor
+- **Real-Time Interaction**: Streaming responses and immediate content manipulation
+- **WordPress-Native**: Built specifically for WordPress content workflows
+- **Security First**: Respect WordPress user roles and capabilities
+- **Modern Development**: OpenAI function calling, streaming responses, clean architecture
+- **MCP-Ready**: Designed to work with Model Context Protocol for advanced AI agent capabilities
+
+## Technical Architecture
+
+### API Integration
+- **Primary**: OpenAI GPT-4.1 for agentic execution and streaming responses
+- **Streaming Pipeline**: True end-to-end streaming (OpenAI → PHP → JS UI)
+- **Responses API**: Uses `/v1/responses` endpoint with `"stream": true`
+- **Function Calling**: Proper OpenAI function calling with strict mode enabled
+- **Error Handling**: Graceful failure management with OpenAI error responses
+- **Tool Architecture**: Modular tool system using BaseTool classes with proper schemas
+- **Future**: Extensible to OpenRouter for multi-model support
+- **MCP Support**: Model Context Protocol integration for advanced AI agent capabilities
+
+### WordPress Integration Points
+- **Gutenberg Block Editor**: Custom sidebar panel with chat interface
+- **Current Post Context**: Direct access via wp.data.select('core/editor')
+- **REST API**: AJAX communication between frontend and backend
+- **Function Calling**: Direct WordPress operations via OpenAI function calling
+- **Security**: Nonce validation, capability checks, user role enforcement
+- **MCP Server**: Optional MCP server for external AI agent integration
+
+### Core Components (Current Implementation)
+
+#### Admin Layer ✅
+1. **Admin Interface** - General plugin administration and settings (`includes/admin/class-admin.php`)
+2. **Settings Page** - OpenAI API key configuration (`includes/admin/class-settings.php`)
+3. **Editor Integration** - Gutenberg sidebar panel and content manipulation (`includes/admin/editor/class-editor-interface.php`)
+
+#### API Layer ✅
+1. **OpenAI Integration** - Direct API calls with proper function calling (`includes/api/class-openai.php`)
+2. **API Base Class** - Extensible foundation for future API integrations (`includes/api/class-api-base.php`)
+3. **REST Endpoints** - WordPress REST API for frontend communication (`includes/api/class-rest-api.php`)
+
+#### Frontend Layer ✅
+1. **Gutenberg Sidebar** - React-based chat interface (`src/js/editor/index.js`)
+2. **Streaming Chat Component** - Modular chat component with real-time updates (`src/js/editor/WordsurfChatStream.js`)
+3. **Build System** - Webpack configuration for asset compilation (`webpack.config.js`)
+4. **Asset Management** - Compiled JavaScript in `assets/js/` directory
+
+#### Agent Layer ✅ (Enhanced)
+1. **Agent Core** - Main agent logic and message preparation (`includes/agent/core/class-agent-core.php`)
+2. **Chat Handler** - WordPress hooks and streaming management (`includes/agent/core/class-chat-handler.php`)
+3. **Conversation Management** - State tracking and context preservation (planned)
+4. **Tool Orchestration** - Modular tool system using BaseTool architecture (`includes/agent/core/class-tool-manager.php`)
+5. **Context Management** - Current post context and conversation state
+   - **Current Post Context** - Direct access to post data from Gutenberg
+   - **Conversation State** - Message history and context preservation (planned)
+   - **Taxonomy Context** - Category, tag, and custom taxonomy operations (planned)
+   - **Future: External Context** - External data sources and integrations
+
+#### Security Layer ❌ (Planned)
+1. **Capability Checking** - User role and permission validation
+2. **Nonce Management** - Security token validation
+3. **Input Sanitization** - AI-generated content safety
+4. **JWT Authentication** - For MCP server integration (optional)
+
+## OpenAI Function Calling Implementation
+
+### Tool Schema Standards
+All tools follow OpenAI's function calling schema with strict mode enabled. The base tool class handles the standardized structure:
+
+```json
+{
+  "type": "function",
+  "name": "tool_name",
+  "description": "Clear description of when and how to use the function",
+  "strict": true,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "parameter_name": {
+        "type": "string",
+        "description": "Detailed parameter description",
+        "required": true
+      }
+    },
+    "required": ["parameter_name"],
+    "additionalProperties": false
+  }
+}
+```
+
+### Base Tool Architecture
+The `Wordsurf_BaseTool` class provides:
+- **Standardized Schema Building**: Automatically constructs OpenAI-compliant schemas
+- **Strict Mode Enforcement**: All tools use `"strict": true` by default
+- **Parameter Validation**: Automatic required parameter detection
+- **Schema Consistency**: Ensures all tools follow the same structure
+
+### Individual Tool Implementation
+Each tool only needs to implement:
+- `get_name()`: Unique tool identifier
+- `get_description()`: Clear usage instructions
+- `get_parameters_schema()`: Tool-specific parameters
+- `execute()`: Tool logic and business rules
+
+### Function Calling Flow
+1. **Tool Definition**: Tools are defined with proper schemas and strict mode
+2. **Model Decision**: GPT-4.1 decides when to call functions based on user input
+3. **Function Execution**: Tools are executed with parsed arguments
+4. **Result Handling**: Results are formatted and sent back to the model
+5. **Follow-up Call**: Function results are sent back to OpenAI for final response generation
+6. **Final Response**: Model incorporates results into final user-facing response
+
+### Streaming Function Calls
+- **Real-time Detection**: Function calls are detected during streaming
+- **Argument Building**: Arguments are accumulated from streaming deltas
+- **Immediate Execution**: Tools are executed as soon as calls are complete
+- **Result Streaming**: Function results are streamed back to the frontend
+- **Agentic Loop**: Function results are sent back to OpenAI for follow-up response generation
+
+### Tool Best Practices
+- **Clear Descriptions**: Each tool has explicit purpose and usage instructions
+- **Parameter Validation**: All parameters are properly typed and validated
+- **Error Handling**: Tools return structured error responses
+- **Security**: Tools respect WordPress user capabilities and data access
+- **Performance**: Tools are optimized for quick execution
+
+## User Experience Flow
+
+1. User opens WordPress post editor (Gutenberg)
+2. Wordsurf sidebar panel appears with streaming chat interface
+3. Current post context is automatically available to the agent
+4. User converses with agent for content operations
+5. Agent responds with real-time streaming feedback
+6. Immediate content updates and visual feedback
+7. Respect for WordPress user roles and capabilities
+
+## Development Status
+
+**Current Phase**: Streaming chat foundation complete, ready for modular tool development
+**Completed**: 
+- Basic plugin structure with singleton pattern
+- OpenAI API integration with proper function calling
+- Gutenberg sidebar UI with React components (`WordsurfChatStream`)
+- REST API endpoints for streaming chat communication
+- Frontend-backend streaming communication via Server-Sent Events
+- Basic security with nonce validation and capability checks
+- Settings page for OpenAI API key configuration
+- Build system with webpack configuration
+- **True end-to-end streaming pipeline** (OpenAI → PHP → JS UI)
+- **Modular chat component with real-time updates**
+- **Agent core and API handler separation**
+- **CSS styling for the chat interface**
+- **Proper OpenAI function calling implementation**
+
+**In Progress**: 
+- Modular tool development using BaseTool architecture
+- Agent core enhancement for tool orchestration
+
+**Next Steps**: Implement modular tools starting with read_post tool
+
+## File Structure (Current Implementation)
+
+```
+wordsurf/
+├── wordsurf.php              # Main plugin file
+├── includes/
+│   ├── admin/                    # General admin functionality
+│   │   ├── class-admin.php       # Main admin class ✅
+│   │   ├── class-settings.php    # Plugin settings page ✅
+│   │   └── editor/
+│   │       └── class-editor-interface.php # Gutenberg sidebar integration ✅
+│   ├── api/                      # API integrations (thin routing layer)
+│   │   ├── class-openai.php      # OpenAI API handler with function calling ✅
+│   │   ├── class-api-base.php    # Base API class for future integrations ✅
+│   │   └── class-rest-api.php    # WordPress REST API routing ✅
+│   ├── agent/                    # Core agent engine
+│   │   ├── core/
+│   │   │   ├── class-agent-core.php # Agent logic and message preparation ✅
+│   │   │   ├── class-chat-handler.php # WordPress hooks and streaming ✅
+│   │   │   ├── class-system-prompt.php # System prompt management ✅
+│   │   │   ├── class-tool-manager.php # Tool orchestration ✅
+│   │   │   └── tools/           # Modular tool system
+│   │   │       ├── basetool.php # Base tool class ✅
+│   │   │       └── read_post.php # Read post tool ✅
+│   │   └── context/              # Context management
+│   │       └── class-context-manager.php # Post and conversation context ✅
+│   └── security/                 # Security and validation (planned)
+│       └── # Empty directory
+├── assets/
+│   ├── js/
+│   │   ├── editor.js             # Compiled editor JavaScript ✅
+│   │   ├── admin.js              # Compiled admin JavaScript ✅
+│   │   ├── editor.asset.php      # Editor dependencies ✅
+│   │   └── admin.asset.php       # Admin dependencies ✅
+│   ├── css/                      # CSS files
+│   │   ├── editor/
+│   │   │   └── editor-interface.css # Editor interface styling ✅
+│   │   ├── admin/                # Empty directory
+│   │   └── agent/                # Empty directory
+│   └── images/                   # Plugin images and icons
+├── src/
+│   └── js/
+│       ├── editor/
+│       │   ├── index.js          # Editor React components ✅
+│       │   ├── WordsurfChatStream.js # Streaming chat component ✅
+│       │   └── chatStreamApi.js  # Streaming API handler ✅
+│       └── admin/
+│           └── index.js          # Admin JavaScript ✅
+├── webpack.config.js             # Build configuration ✅
+├── package.json                  # Dependencies and scripts ✅
+└── tests/                        # Unit tests and integration tests
+```
+
+## Key Technical Challenges
+
+1. **Modular Tool Development**: Implement BaseTool architecture and individual tools
+2. **Tool Orchestration**: Agent core coordination of tool execution
+3. **Context Management**: Maintaining conversation state and post context
+4. **Error Handling**: Graceful failure when AI makes invalid requests
+5. **Security**: Preventing unauthorized database modifications
+6. **Performance**: Efficient database queries and response handling
+7. **CSS Styling**: Complete the visual interface design
+8. **MCP Integration**: Model Context Protocol server implementation
+
+## Security Considerations
+
+- **Nonce Validation**: All AJAX operations require valid nonces ✅
+- **Capability Checks**: Respect WordPress user roles and permissions ✅
+- **Input Sanitization**: All AI-generated content properly sanitized (planned)
+- **Rate Limiting**: Prevent API abuse and excessive requests (planned)
+- **Audit Logging**: Track agent operations for security monitoring (planned)
+- **JWT Authentication**: For MCP server integration (planned)
+
+## Future Enhancements
+
+- **Command Line Access**: Advanced operations via WP-CLI
+- **Source Code Analysis**: Code-aware operations for developers
+- **Multi-model Support**: User-selectable AI models
+- **Cross-post Operations**: Bulk content management
+- **Custom Functions**: User-defined agent capabilities
+- **MCP Server**: Full Model Context Protocol implementation
+- **External AI Agent Integration**: Support for Claude Desktop and other MCP clients
+
+## MCP (Model Context Protocol) Integration
+
+Based on the WordPress MCP plugin analysis, Wordsurf will implement MCP capabilities:
+
+### MCP Features
+- **Dual Transport**: STDIO and HTTP-based (Streamable) transports
+- **JWT Authentication**: Secure token-based authentication
+- **WordPress Tools**: Standardized WordPress functionality exposure
+- **AI-Friendly APIs**: JSON-RPC 2.0 compliant endpoints
+- **Extensible Architecture**: Custom tools, resources, and prompts support
+
+### MCP Benefits
+- **External AI Agent Support**: Claude Desktop, ChatGPT, and other MCP clients
+- **Enhanced Capabilities**: AI agents can fully understand and control WordPress
+- **Standardized Interface**: Consistent API for AI agent interactions
+- **Security**: Enterprise-grade authentication and audit logging
+
+### MCP Implementation Strategy
+1. **Phase 1**: Basic MCP server with core WordPress tools
+2. **Phase 2**: Enhanced tools for content management
+3. **Phase 3**: External AI agent integration
+4. **Phase 4**: Advanced features and custom tools
+
+3. **Phase 3**: External AI agent integration
+4. **Phase 4**: Advanced features and custom tools
