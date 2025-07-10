@@ -25,11 +25,11 @@ class Wordsurf_ReadPostTool extends Wordsurf_BaseTool {
     }
     
     /**
-     * Get the tool parameters schema
+     * Define the tool parameters declaratively
      * 
      * @return array
      */
-    public function get_parameters_schema() {
+    protected function define_parameters() {
         return [
             'post_id' => [
                 'type' => 'integer',

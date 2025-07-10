@@ -66,6 +66,13 @@ class Wordsurf_Editor_Interface {
             filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/agent/tool-call.css')
         );
 
+        wp_enqueue_style(
+            'wordsurf-inline-diff-highlight-styles',
+            WORDSURF_PLUGIN_URL . 'assets/css/editor/inline-diff-highlight.css',
+            [],
+            filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/editor/inline-diff-highlight.css')
+        );
+
         wp_localize_script(
             'wordsurf-editor',
             'wordsurfData',

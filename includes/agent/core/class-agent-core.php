@@ -96,6 +96,11 @@ class Wordsurf_Agent_Core {
             $result = $this->tool_manager->execute_tool($tool_name, $arguments);
             error_log("Wordsurf DEBUG: Tool '{$tool_name}' executed. Result: " . json_encode($result));
 
+            // Store tool execution for future context (if it's a preview tool)
+            if (isset($result['preview']) && $result['preview'] === true) {
+                $this->store_tool_execution($tool_name, $arguments, $result);
+            }
+
             $this->send_sse_event('tool_end', [
                 'name' => $tool_name,
                 'id' => $tool_call_id,
@@ -122,7 +127,6 @@ class Wordsurf_Agent_Core {
      * @param array $data The data payload for the event.
      */
     private function send_sse_event($type, $data) {
-        error_log("Wordsurf DEBUG: Sending SSE event of type '{$type}'");
         $event_data = json_encode(['type' => $type, 'data' => $data]);
         $sse_string = "data: {$event_data}\n\n";
         
@@ -183,7 +187,10 @@ class Wordsurf_Agent_Core {
 
         // After the first stream is complete, check if we need to make a follow-up call.
         if ($this->has_pending_tool_calls()) {
+            error_log('Wordsurf DEBUG: Making follow-up call for tool results...');
             $this->make_follow_up_call();
+        } else {
+            error_log('Wordsurf DEBUG: No pending tool calls, skipping follow-up.');
         }
     }
 
@@ -299,5 +306,65 @@ class Wordsurf_Agent_Core {
             'tool_call_id' => $function_call['id'],
             'content' => json_encode($result)
         ]);
+    }
+
+    /**
+     * Store tool execution data for future AI context awareness
+     * 
+     * @param string $tool_name
+     * @param array $arguments
+     * @param array $result
+     */
+    private function store_tool_execution($tool_name, $arguments, $result) {
+        // Get post_id from arguments or context
+        $post_id = $arguments['post_id'] ?? null;
+        if (!$post_id) {
+            return; // Can't store without post context
+        }
+
+        $user_id = get_current_user_id();
+        $history_key = "wordsurf_pending_tools_{$user_id}_{$post_id}";
+        
+        // Get existing pending tools or create new array
+        $pending_tools = get_transient($history_key) ?: [];
+        
+        // Create tool execution entry
+        $tool_entry = [
+            'timestamp' => current_time('mysql'),
+            'tool_name' => $tool_name,
+            'arguments' => $arguments,
+            'result' => $result,
+            'status' => 'pending_user_feedback', // Will be updated when user accepts/rejects
+            'post_id' => $post_id
+        ];
+        
+        // Add to pending tools (these will be moved to history when user provides feedback)
+        $pending_tools[] = $tool_entry;
+        
+        // Keep only last 10 pending tools to prevent unlimited growth
+        if (count($pending_tools) > 10) {
+            $pending_tools = array_slice($pending_tools, -10);
+        }
+        
+        // Store for 2 hours (shorter than feedback history since these should get resolved quickly)
+        set_transient($history_key, $pending_tools, 2 * HOUR_IN_SECONDS);
+        
+        error_log("Wordsurf DEBUG: Stored tool execution - Tool: {$tool_name}, Post: {$post_id}, Pending tools: " . count($pending_tools));
+    }
+
+    /**
+     * Get pending tool executions for a specific post and user
+     * 
+     * @param int $post_id
+     * @param int|null $user_id Optional user ID, defaults to current user
+     * @return array Pending tool executions
+     */
+    public function get_pending_tools($post_id, $user_id = null) {
+        if (!$user_id) {
+            $user_id = get_current_user_id();
+        }
+        
+        $history_key = "wordsurf_pending_tools_{$user_id}_{$post_id}";
+        return get_transient($history_key) ?: [];
     }
 } 

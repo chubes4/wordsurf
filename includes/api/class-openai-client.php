@@ -58,7 +58,6 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
             CURLOPT_POST           => 1,
             CURLOPT_POSTFIELDS     => json_encode($body),
             CURLOPT_WRITEFUNCTION  => function($ch, $data) use ($stream_chunk_callback) {
-                error_log("Wordsurf DEBUG: Raw cURL data chunk received: " . $data);
                 if (is_callable($stream_chunk_callback)) {
                     call_user_func($stream_chunk_callback, $data);
                 }
@@ -67,9 +66,16 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
         ]);
 
         $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        
+        error_log(message: 'Wordsurf DEBUG: HTTP Status Code: ' . $http_code);
 
         if (curl_errno($ch)) {
             error_log('Wordsurf cURL Error: ' . curl_error($ch));
+        }
+        
+        if ($http_code !== 200) {
+            error_log('Wordsurf DEBUG: Non-200 response. HTTP Code: ' . $http_code);
         }
         
         curl_close($ch);

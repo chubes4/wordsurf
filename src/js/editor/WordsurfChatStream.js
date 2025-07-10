@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { streamChatMessage } from './chatStreamApi';
 import ToolCall from './ToolCall';
 
-const WordsurfChatStream = ({ initialMessages = [], postId, onSend }) => {
+const WordsurfChatStream = ({ initialMessages = [], postId, onSend, onDiffReceived }) => {
   const [messages, setMessages] = useState(initialMessages);
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -17,6 +17,8 @@ const WordsurfChatStream = ({ initialMessages = [], postId, onSend }) => {
       chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
     }
   }, [messages, streamedMessage, toolCalls]);
+
+
 
   const handleSend = async () => {
     if (!inputValue.trim() || isStreaming) return;
@@ -49,6 +51,15 @@ const WordsurfChatStream = ({ initialMessages = [], postId, onSend }) => {
             setToolCalls(prev => [...prev, { name: event.data.name, status: 'in_progress' }]);
         } else if (event.type === 'tool_end') {
             setToolCalls(prev => prev.map(tc => tc.name === event.data.name ? { ...tc, status: event.data.status } : tc));
+            
+            // Check if this is a tool result with preview data (edit_post, insert_content, or write_to_post)
+            if ((event.data.name === 'edit_post' || event.data.name === 'insert_content' || event.data.name === 'write_to_post') && 
+                event.data.result && event.data.result.preview) {
+              // Send diff data to parent component for editor overlay
+              if (onDiffReceived) {
+                onDiffReceived(event.data.result);
+              }
+            }
         } else if (event.type === 'system') {
             // Display a system message, like "Thinking..."
             setToolCalls(prev => [...prev, { name: event.data.content, status: 'system' }]);
@@ -94,6 +105,7 @@ const WordsurfChatStream = ({ initialMessages = [], postId, onSend }) => {
         {toolCalls.map((tc, idx) => (
             <ToolCall key={idx} name={tc.name} status={tc.status} />
         ))}
+
         {isStreaming && streamedMessage && (
           <div className="chat-message agent">
             <div className="chat-bubble">

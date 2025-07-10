@@ -31,6 +31,9 @@ class Wordsurf_Context_Manager {
         // Add post context if provided
         if ($post_id) {
             $context['current_post'] = $this->get_post_context($post_id);
+            
+            // Add tool execution history for this post
+            $context['tool_history'] = $this->get_tool_execution_context($post_id);
         }
         
         // Merge any additional context
@@ -97,5 +100,82 @@ class Wordsurf_Context_Manager {
             'admin_url' => admin_url(),
             'version' => get_bloginfo('version'),
         );
+    }
+
+    /**
+     * Get tool execution history context for AI awareness
+     * 
+     * @param int $post_id
+     * @param int|null $user_id Optional user ID, defaults to current user
+     * @return string Formatted tool execution history
+     */
+    public function get_tool_execution_context($post_id, $user_id = null) {
+        if (!$user_id) {
+            $user_id = get_current_user_id();
+        }
+        
+        // Get completed tool history
+        $history_key = "wordsurf_tool_history_{$user_id}_{$post_id}";
+        $history = get_transient($history_key) ?: [];
+        
+        // Get pending tool executions (tools executed but not yet accepted/rejected)
+        $pending_key = "wordsurf_pending_tools_{$user_id}_{$post_id}";
+        $pending_tools = get_transient($pending_key) ?: [];
+        
+        $context_parts = [];
+        
+        // Add recent completed tools to context
+        if (!empty($history)) {
+            $context_parts[] = "## Recent Tool Execution History:";
+            
+            // Show last 5 tool executions for context
+            $recent_history = array_slice($history, -5);
+            foreach ($recent_history as $entry) {
+                $timestamp = $entry['timestamp'];
+                $tool_type = $entry['tool_type'];
+                $user_action = $entry['user_action'];
+                
+                $action_text = $user_action === 'accepted' ? 'ACCEPTED' : 'REJECTED';
+                
+                if (isset($entry['tool_execution'])) {
+                    $args = $entry['tool_execution']['arguments'];
+                    $search_pattern = $args['search_pattern'] ?? 'unknown';
+                    $replacement_text = $args['replacement_text'] ?? 'unknown';
+                    
+                    $context_parts[] = "- {$timestamp}: {$tool_type} tool executed - searched for \"{$search_pattern}\", proposed replacement \"{$replacement_text}\" - User {$action_text}";
+                } else {
+                    $context_parts[] = "- {$timestamp}: {$tool_type} tool - User {$action_text}";
+                }
+            }
+        }
+        
+        // Add pending tools to context
+        if (!empty($pending_tools)) {
+            $context_parts[] = "\n## Pending Tool Results (awaiting user feedback):";
+            
+            foreach ($pending_tools as $tool) {
+                $timestamp = $tool['timestamp'];
+                $tool_name = $tool['tool_name'];
+                $args = $tool['arguments'];
+                
+                $search_pattern = $args['search_pattern'] ?? 'unknown';
+                $replacement_text = $args['replacement_text'] ?? 'unknown';
+                
+                $context_parts[] = "- {$timestamp}: {$tool_name} executed - searched for \"{$search_pattern}\", proposed replacement \"{$replacement_text}\" - AWAITING USER RESPONSE";
+            }
+        }
+        
+        // Provide guidance if no history
+        if (empty($history) && empty($pending_tools)) {
+            return "No previous tool executions for this post.";
+        }
+        
+        $context_parts[] = "\n## Important Context Notes:";
+        $context_parts[] = "- If a tool execution was ACCEPTED, those changes have been applied to the post content";
+        $context_parts[] = "- If a tool execution was REJECTED, those changes were NOT applied";
+        $context_parts[] = "- If a tool is AWAITING USER RESPONSE, do not repeat the same suggestion";
+        $context_parts[] = "- Always check current post content with read_post before making new suggestions";
+        
+        return implode("\n", $context_parts);
     }
 } 

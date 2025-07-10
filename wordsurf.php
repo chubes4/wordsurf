@@ -82,16 +82,16 @@ final class Wordsurf {
         // Core
         require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-agent-core.php';
         require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-chat-handler.php';
-        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-system-prompt.php';
-        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-tool-manager.php';
+            require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-system-prompt.php';
+            require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-tool-manager.php';
         require_once WORDSURF_PLUGIN_DIR . 'includes/agent/context/class-context-manager.php';
 
         // API
         require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-openai-client.php';
-        require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-rest-api.php';
+            require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-rest-api.php';
 
         // Admin
-        require_once WORDSURF_PLUGIN_DIR . 'includes/admin/class-admin.php';
+            require_once WORDSURF_PLUGIN_DIR . 'includes/admin/class-admin.php';
     }
 
     /**

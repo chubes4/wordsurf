@@ -137,6 +137,25 @@ class Wordsurf_Response_Stream_Parser {
                     $this->fire('onTextDelta', $parsed['delta']);
                 }
                 break;
+                
+            // Handle other potential text events
+            case 'response.text.delta':
+                if (isset($parsed['delta'])) {
+                    $this->fire('onTextDelta', $parsed['delta']);
+                }
+                break;
+                
+            // Handle content deltas (another possible format)
+            case 'response.content.delta':
+                if (isset($parsed['delta'])) {
+                    $this->fire('onTextDelta', $parsed['delta']);
+                }
+                break;
+                
+            // Log unknown events for debugging
+            default:
+                error_log("Wordsurf DEBUG: Unknown event type: {$event_type}, data: " . $data_line);
+                break;
         }
     }
 

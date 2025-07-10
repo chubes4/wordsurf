@@ -37,9 +37,22 @@ class Wordsurf_Tool_Manager {
         
         $this->tools['read_post'] = new Wordsurf_ReadPostTool();
         
+        // Load the edit_post tool
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/edit_post.php';
+        
+        $this->tools['edit_post'] = new Wordsurf_EditPostTool();
+        
+        // Load the insert_content tool
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/insert_content.php';
+        
+        $this->tools['insert_content'] = new Wordsurf_InsertContentTool();
+        
+        // Load the write_to_post tool
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/write_to_post.php';
+        
+        $this->tools['write_to_post'] = new Wordsurf_WriteToPostTool();
+        
         // Future tools will be loaded here
-        // require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/update_post.php';
-        // $this->tools['update_post'] = new Wordsurf_UpdatePostTool();
     }
     
     /**

@@ -99,7 +99,7 @@ class Wordsurf_REST_API {
      */
     public function handle_chat_message($request) {
         $params = $request->get_json_params();
-
+        
         // The primary entry point is now the streaming ajax handler.
         // This REST endpoint is for non-streaming, which is deprecated.
         $chat_handler = new Wordsurf_Chat_Handler();
@@ -137,4 +137,4 @@ class Wordsurf_REST_API {
     }
     
 
-}
+} 
