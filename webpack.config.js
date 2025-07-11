@@ -3,7 +3,7 @@ const defaultConfig = require('@wordpress/scripts/config/webpack.config');
 module.exports = {
     ...defaultConfig,
     entry: {
-        'editor': './src/js/editor/index.js',
+        'editor': './src/js/WordsurfPlugin.js',
         'admin': './src/js/admin/index.js',
     },
     output: {

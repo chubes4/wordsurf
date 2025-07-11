@@ -125,4 +125,48 @@ class Wordsurf_Tool_Manager {
         
         return implode("\n", $descriptions);
     }
+
+    /**
+     * Parses a full API response, finds, executes, and returns completed tool calls.
+     *
+     * @param string $full_response The complete raw response from the API.
+     * @return array A list of pending tool calls with their results.
+     */
+    public function process_and_execute_tool_calls($full_response) {
+        $pending_tool_calls = [];
+        $lines = explode("\n", $full_response);
+        
+        foreach ($lines as $line) {
+            // The final event block starts with 'event: response.completed'.
+            // The actual data is on the following 'data: ' line.
+            if (strpos($line, 'data: ') === 0) {
+                $json_data = substr($line, 6);
+                $decoded = json_decode($json_data, true);
+                
+                // Check for the final 'response' block from a 'response.completed' event.
+                if (isset($decoded['response']['output'])) {
+                    $output_items = $decoded['response']['output'];
+                    foreach ($output_items as $item) {
+                        if (isset($item['type']) && $item['type'] === 'function_call' && isset($item['status']) && $item['status'] === 'completed') {
+                            $tool_name = $item['name'];
+                            $arguments = json_decode($item['arguments'], true);
+
+                            error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' with ID '{$item['call_id']}'.");
+                            $result = $this->execute_tool($tool_name, $arguments);
+                            error_log("Wordsurf DEBUG (ToolManager): Tool '{$tool_name}' executed. Result: " . json_encode($result));
+
+                            // Store the tool call object and its result for the follow-up.
+                            $pending_tool_calls[] = [
+                                'tool_call_object' => $item,
+                                'result' => $result,
+                            ];
+                        }
+                    }
+                    // Once we've processed the 'response.completed' data, we can stop.
+                    break;
+                }
+            }
+        }
+        return $pending_tool_calls;
+    }
 } 

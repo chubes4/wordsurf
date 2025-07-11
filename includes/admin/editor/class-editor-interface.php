@@ -53,24 +53,17 @@ class Wordsurf_Editor_Interface {
         );
 
         wp_enqueue_style(
-            'wordsurf-editor-styles',
+            'wordsurf-editor-interface',
             WORDSURF_PLUGIN_URL . 'assets/css/editor/editor-interface.css',
             [],
-            filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/editor/editor-interface.css')
+            filemtime( WORDSURF_PLUGIN_DIR . 'assets/css/editor/editor-interface.css' )
         );
 
         wp_enqueue_style(
-            'wordsurf-tool-call-styles',
-            WORDSURF_PLUGIN_URL . 'assets/css/agent/tool-call.css',
-            [],
-            filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/agent/tool-call.css')
-        );
-
-        wp_enqueue_style(
-            'wordsurf-inline-diff-highlight-styles',
+            'wordsurf-inline-diff-highlight',
             WORDSURF_PLUGIN_URL . 'assets/css/editor/inline-diff-highlight.css',
             [],
-            filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/editor/inline-diff-highlight.css')
+            filemtime( WORDSURF_PLUGIN_DIR . 'assets/css/editor/inline-diff-highlight.css' )
         );
 
         wp_localize_script(

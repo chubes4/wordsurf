@@ -3,251 +3,206 @@
 
 ## Immediate (Next Steps)
 
-1. **✅ Implement edit_post Tool** 
-   - ✅ Create `includes/agent/core/tools/edit_post.php`
-   - ✅ Implement regex-based search and replace functionality
-   - ✅ Add parameter validation for search pattern and replacement text
-   - ✅ Support for content, title, and excerpt editing
-   - ✅ Update tool registration in `Wordsurf_Tool_Manager`
-   - 🔄 Test with various edit scenarios (typos, sentence modifications, content additions)
+1. **🔍 IN PROGRESS: OpenAI Responses API Event Format Investigation**
+   - **Issue**: Getting HTTP 200 responses but empty content from OpenAI Responses API
+   - **Root Cause**: Mismatch between expected SSE event types and what OpenAI actually sends in 2025
+   - **Debug Strategy**: Added comprehensive logging to `Wordsurf_Response_Stream_Parser` to capture actual OpenAI event format
+   - **Critical Note**: Using OpenAI Responses API (`/v1/responses`) with `gpt-4.1` model - DO NOT revert to Chat Completions API
+   - **Next**: Monitor debug logs to identify actual event types, then update parser accordingly
+   - **Debug Command**: `tail -f /path/to/logs/error.log | grep "Wordsurf DEBUG"`
 
-2. **✅ Implement write_to_post Tool** 
-   - ✅ Create `includes/agent/core/tools/write_to_post.php`
-   - ✅ Implement full content replacement functionality with modal preview
-   - ✅ Add content validation and sanitization
-   - ✅ Support for title and excerpt updates
-   - ✅ Add content statistics and before/after comparison
-   - ✅ Test with different content types and formats
-   - ✅ Register tool in `Wordsurf_Tool_Manager`
-   - ✅ Integrate with InlineDiffHighlight for full preview overlay
+2. **✅ COMPLETED: OpenAI Streaming Format Compatibility**
+   - ✅ Updated backend `Wordsurf_Response_Stream_Parser` to handle new OpenAI format (`response.output_item.done`)
+   - ✅ Maintained backward compatibility with legacy format
+   - ✅ Preserved clean frontend architecture - no translation layer needed
+   - ✅ Fixed diff display issue - tools now properly trigger frontend diff system
+   - **Result**: All tools (edit_post, insert_content, write_to_post) now work with proper diff previews
 
-3. **Enhance User Experience**
-   - Add visual feedback for tool execution in chat interface
-   - Implement content preview before applying changes
-   - Add undo/redo functionality for tool operations
-   - Improve error handling and user messaging
+3. **User Experience Polish**
+   - Replace generic "Sorry, there was an error" with specific, actionable error messages
+   - Add progressive loading indicators and estimated time display for tool operations
+   - Implement undo/redo functionality for tool operations (safe experimentation)
+   - Enhance keyboard shortcuts and mobile responsiveness in chat interface
 
-4. **Clean Up Development Code**
-   - Remove debug `error_log` statements
-   - Optimize performance for production
-   - Add comprehensive error handling
-   - Implement proper logging system
+4. **Remove Debug Performance Overhead**
+   - Remove console.log statements cluttering the developer console (affects fluidity)
+   - Clean up error_log statements that add unnecessary network overhead
+   - Streamline debugging to not impact user experience
+   - **EXCEPTION**: Keep debugging logs in `Wordsurf_Response_Stream_Parser` until current SSE format issue is resolved
+
+5. **Enhanced Tool Feedback**
+   - Add content statistics display (word count changes, character differences)
+   - Implement real-time progress indicators for longer operations  
+   - Show estimated completion times for tool execution
+   - Add visual feedback during diff application process
+
+## V1 Core Feature Roadmap (Post-Foundation)
+
+**Priority**: These 4 features represent the core v1 that would make Wordsurf genuinely revolutionary in the WordPress ecosystem. Only begin after current foundation tools are bulletproof.
+
+### 1. Site Content Search Tool
+- **Tool**: `search_site_content` - semantic search across all site posts, pages, and custom post types
+- **Capability**: Find and reference existing content to link to, quote from, or build upon
+- **Impact**: Transforms isolated post editing into connected content strategy
+- **Implementation**: WordPress database queries with relevance scoring, automatic link insertion
+- **Example**: "Find related posts about SEO to link to" → AI finds relevant content and suggests contextual links
+
+### 2. Google Search Console Integration
+- **Tool**: `gsc_keyword_lookup` - real-time integration with Google Search Console API
+- **Capability**: Pull ranking data, search volume, click-through rates, and performance metrics
+- **Impact**: Data-driven SEO optimization instead of guessing at keyword strategy
+- **Implementation**: GSC API authentication, keyword performance analysis, content optimization suggestions
+- **Example**: "Optimize this post for better rankings" → AI analyzes GSC data and suggests specific improvements
+
+### 3. Persistent Chat History System
+- **Custom Post Type**: `wordsurf_conversations` with post relationship management
+- **Capability**: Save complete chat sessions while starting fresh context windows for new conversations
+- **Benefits**: Return to posts weeks later and continue naturally with full context
+- **Example**: Return to post weeks later and see entire conversation history + continue naturally
+
+### 4. Conversation Checkpoint System
+- **Architecture**: State snapshots at each user message capturing both content state and conversation state
+- **Capability**: "Time travel" editing - revert to any previous state and modify prompts/content from that point
+- **Impact**: Risk-free experimentation, conversation branching, perfect prompt iteration
+- **Implementation**: Content versioning, conversation state management, branching logic
+- **Example**: Try 5 different editing approaches, compare results, revert to message #3 and try different phrasing
+
+**V1 Complete**: With these 4 features + rock-solid foundation tools = genuinely revolutionary WordPress AI plugin with unique value proposition in the market.
 
 ## High Priority
 
-1. **Tool System Enhancement**
-   - ✅ Implement BaseTool architecture for extensible tool system
-   - ✅ Create read_post tool with proper OpenAI schema
-   - ✅ Add edit_post tool with regex functionality
-   - ✅ Add real-time diff preview with accept/reject functionality
-   - ✅ Add insert_content tool for adding new content without replacing existing content
-   - ✅ Add write_to_post tool for full content replacement with preview modal
-   - Add tool result validation and error handling
-   - Implement tool execution logging
+1. **Fluid Error Recovery**
+   - Add automatic retry mechanisms for failed API calls with exponential backoff
+   - Implement graceful degradation when AI requests are invalid
+   - Provide suggested alternative actions when operations fail
+   - Add "try again" buttons with intelligent retry logic
 
-2. **Content Management Tools**
-   - Add taxonomy management tools (categories, tags)
-   - Implement media handling capabilities
-   - Add SEO optimization tools
-   - Create content analysis and suggestions
-   - Add internal linking tools
+2. **Advanced Loading & Feedback States**
+   - Progressive loading indicators showing operation stages
+   - Real-time status updates during tool execution ("Analyzing content...", "Generating changes...", "Applying modifications...")
+   - Smooth transitions between different tool states
+   - Visual preview animations before changes are applied
 
-3. **Security and Error Handling**
-   - Implement comprehensive input sanitization
-   - Add rate limiting and abuse prevention
-   - Create detailed logging for debugging
-   - Add user capability checking for all operations
-   - Implement response caching for performance
+3. **Chat Interface Fluidity**
+   - Add keyboard shortcuts (Ctrl+Enter for send, Esc for cancel)
+   - Implement auto-resize textarea that grows with content
+   - Add suggested prompts/quick actions for common tasks
+   - Improve mobile touch interactions and responsive design
+   - Add voice-to-text input option for hands-free operation
 
-4. **Agent Core Enhancement**
-   - Enhance conversation state management
-   - Add context window management for large posts
-   - Implement tool result handling and display
-   - Add agent personality and behavior settings
-
-5. **Admin Interface Enhancement**
-   - Create site-level chat interface for cross-post operations
-   - Add bulk content management tools
-   - Implement content analytics and insights
-   - Add custom tool creation interface
+4. **Foundation Tool Reliability**
+   - Performance optimization for large content operations
+   - Comprehensive testing suite for tool reliability
+   - Edge case handling for malformed content and unusual requests
+   - Tool execution monitoring and analytics
 
 ## Medium Priority
 
-1. **Advanced Content Operations**
-   - Cross-post linking and relationship management
-   - Bulk taxonomy operations
-   - Content optimization suggestions
-   - SEO integration and meta tag management
-   - Image analysis and optimization suggestions
+1. **Chat and Diff UI Enhancements**
+   - **Expandable Tool Calls**: In the chat UI, allow the user to expand a tool call message to see the full result returned from the tool. This will provide better insight into the agent's process, similar to Cursor's own UI.
+   - **Granular & Bulk Diff Actions**: When multiple diffs are pending, provide UI controls to:
+     - Accept all pending changes at once.
+     - Reject all pending changes at once.
+     - Step through each change individually to accept or reject it.
 
-2. **User Experience Enhancements**
-   - Customizable agent personality/behavior
-   - Conversation history and context preservation
-   - Keyboard shortcuts and quick commands
-   - Mobile-responsive chat interface
-   - Voice-to-text integration for hands-free operation
+2. **Advanced Tool System**
+   - Add tool result validation and sanitization
+   - Implement tool execution logging and analytics
+   - Create custom tool creation interface for admins
+   - Add bulk content management operations
 
-3. **Performance and Scalability**
-   - Database query optimization
-   - Caching for frequently accessed data
-   - Lazy loading for large datasets
-   - Memory usage optimization
-   - Multi-site support and optimization
+3. **Security Enhancements**
+   - Implement rate limiting and abuse prevention
+   - Add comprehensive input sanitization validation
+   - Create detailed audit logging for debugging
+   - Enhance user capability checking across all operations
 
-4. **Advanced Error Handling**
-   - Graceful failure when AI makes invalid requests
-   - User-friendly error messages with suggestions
-   - Automatic retry mechanisms with exponential backoff
-   - Fallback options for failed operations
-   - Detailed error logging and debugging tools
+4. **Admin Interface Development**
+   - Create site-level chat interface for cross-post operations
+   - Add bulk content management dashboard
+   - Implement content analytics and insights
+   - Add agent behavior and personality settings
+
+5. **Performance & Infrastructure**
+   - Caching strategies for improved response times
+   - Database query optimization for large datasets
+   - Memory usage optimization for complex operations
+   - Advanced analytics and performance monitoring
 
 ## Low Priority
 
 1. **Multi-model Support**
    - User-selectable AI models (Claude, GPT-4, etc.)
-   - Model-specific optimization
+   - Model-specific optimization and prompt tuning
    - Cost tracking and usage analytics
-   - Model performance comparison
-   - OpenRouter integration for model flexibility
+   - Model performance comparison tools
 
 2. **Advanced AI Features**
-   - Image generation and manipulation
-   - Voice-to-text integration
-   - Multi-language support
-   - Custom function definitions
-   - Advanced MCP server implementation
+   - Image generation and manipulation capabilities
+   - Voice-to-text integration for hands-free operation
+   - Multi-language content support
+   - Custom function definitions for specialized workflows
 
-3. **Developer and Admin Tools**
-   - Debug mode and logging
-   - API response inspection
-   - Function call tracing
-   - Performance monitoring
-   - Admin dashboard with usage analytics
+3. **Developer Tools**
+   - Enhanced debug mode with detailed logging
+   - API response inspection tools
+   - Function call tracing and performance monitoring
+   - Admin dashboard with comprehensive usage analytics
 
 4. **Integration Ecosystem**
-   - Third-party plugin compatibility
-   - Theme integration hooks
-   - External API connections
-   - Social media integration
+   - Third-party plugin compatibility framework
+   - Theme integration hooks and filters
+   - External API connections (social media, analytics)
    - E-commerce platform integration
 
 ## Ideas for Future
 
-1. **Analytics and SEO Integration**
-   - Google Search Console API integration for ranking data
-   - Google Analytics API for content performance insights
-   - Pinterest API for pin data and trending content
-   - SEO optimization suggestions based on real data
-   - Content performance tracking and recommendations
-   - Competitive analysis and keyword insights
+1. **Advanced Analytics Integration** 
+   - Google Analytics API for content performance data
+   - Pinterest API for trending content discovery
+   - Competitive analysis and content gap identification
+   - Content performance tracking and optimization recommendations
 
-2. **Command Line Integration**
-   - WP-CLI commands for agent operations
-   - Batch processing capabilities
-   - Automated content workflows
-   - Server-side agent operations
+2. **Enterprise Features**
+   - Multi-site management capabilities
+   - Team collaboration tools and workflows
+   - Advanced security and compliance features
+   - Custom deployment and white-label options
 
-3. **Source Code Analysis**
-   - Code-aware operations for developers
-   - Theme and plugin code analysis
-   - Custom function generation
-   - Code optimization suggestions
-
-4. **Advanced AI Capabilities**
+3. **Advanced AI Capabilities**
    - Multi-modal content creation (text, images, video)
-   - Predictive content suggestions
-   - User behavior analysis
-   - Personalized content recommendations
+   - Predictive content suggestions based on trends
+   - User behavior analysis for personalization
+   - Automated content workflows and scheduling
 
-5. **Enterprise Features**
-   - Multi-site management
-   - Team collaboration tools
-   - Advanced security and compliance
-   - Custom deployment options
+4. **Command Line Integration**
+   - WP-CLI commands for agent operations
+   - Batch processing capabilities for bulk operations
+   - Automated content workflows via CLI
+   - Server-side agent operations without UI
 
-6. **MCP Ecosystem Integration**
-   - External MCP server connections
-   - Claude Desktop integration
-   - VS Code MCP extension support
-   - Custom MCP client development
-   - Advanced AI agent workflows
+5. **Source Code Analysis**
+   - Code-aware operations for developer workflows
+   - Theme and plugin code analysis and optimization
+   - Custom function generation for specific needs
+   - Code quality suggestions and improvements
 
 ## Technical Research Needed
 
-1. **OpenAI Function Calling** ✅
-   - ✅ Complete function calling implementation patterns
-   - ✅ Error handling for function call failures
-   - ✅ Response parsing and validation
-   - ✅ Security considerations for function execution
-   - ✅ Strict mode implementation
-   - ✅ Proper tool schema design
+1. **WordPress Performance Optimization**
+   - Database query optimization patterns for large datasets
+   - Caching strategies for AI-generated content
+   - Memory usage optimization for complex operations
+   - Multi-site support and scalability considerations
 
-2. **WordPress Gutenberg Development**
-   - Custom sidebar panel styling
-   - Block editor integration patterns
-   - JavaScript API documentation
-   - State management best practices
+2. **Advanced AI Integration**
+   - WebSocket vs Server-Sent Events for real-time features
+   - Advanced function calling patterns and error recovery
+   - Multi-turn conversation optimization
+   - Advanced prompt engineering techniques
 
-3. **Real-time Communication**
-   - WebSocket vs Server-Sent Events
-   - WordPress WebSocket integration
-   - Performance implications
-   - Security considerations
-
-4. **CSS Framework Integration**
-   - WordPress admin styling patterns
-   - Gutenberg component styling
-   - Responsive design for sidebar
-   - Modern UI/UX best practices
-
-5. **Model Context Protocol**
-   - MCP specification and implementation
-   - JWT authentication patterns
-   - Transport protocol options
-   - Tool and resource definitions
-   - External MCP server integration
-
-## Key Learnings from AI Engine and WordPress MCP
-
-### From AI Engine:
-- **MCP Integration**: AI Engine has excellent MCP implementation that allows external AI agents to control WordPress
-- **Function Calling**: Robust function calling with strict mode and comprehensive error handling
-- **Streaming Responses**: Real-time communication with streaming support
-- **Context Management**: Advanced context window management for large content
-- **Security**: Comprehensive security with role-based access and banned words
-- **Extensibility**: Plugin ecosystem integration with other Meow Apps plugins
-
-### From WordPress MCP:
-- **Dual Transport**: STDIO and HTTP-based (Streamable) transports for flexibility
-- **JWT Authentication**: Enterprise-grade authentication system
-- **JSON-RPC 2.0**: Standardized API for AI agent interactions
-- **Extensible Architecture**: Custom tools, resources, and prompts support
-- **Security**: Multi-layer authentication and audit logging
-- **Testing**: Comprehensive test suite with 200+ test cases
-
-### Implementation Strategy:
-1. **Phase 1**: Complete streaming chat foundation and modular tool architecture ✅
-2. **Phase 2**: Implement post-level tools (edit_post, write_to_post) 🔄
-3. **Phase 3**: Add site-level tools and admin interface 📋
-4. **Phase 4**: Advanced features and ecosystem integration 📋
-
-## Agent Tool Architecture (Current Implementation)
-
-- **Agent core** (`Wordsurf_Agent_Core`) is responsible for message preparation, system prompts, and calling the API handler.
-- **API handler** (`Wordsurf_OpenAI_Client`) is a pure HTTP client: it only POSTs the body it is given, with no knowledge of tools, prompts, or business logic.
-- **REST API handler** (`Wordsurf_REST_API`) is a minimal streaming proxy that forwards requests to OpenAI and streams responses back.
-- **Frontend** (`WordsurfChatStream`) handles real-time streaming display and user interaction.
-- **Tools** are modular PHP classes in `includes/agent/core/tools/`, each extending a `Wordsurf_BaseTool` class.
-- **Extensibility**: New tools can be added as new classes, and the agent core can route tool calls as needed.
-
-### Immediate Next Steps
-
-- ✅ Implement `Wordsurf_BaseTool` class with standard interface (`get_name`, `execute`).
-- ✅ Create `ReadPostTool` as the first modular tool implementation.
-- 🔄 Create `EditPostTool` with regex search/replace functionality.
-- 📋 Create `WriteToPostTool` for full content replacement.
-- Enhance agent core to orchestrate tool execution and handle tool results.
-- Integrate tool results with the streaming chat interface.
-
-- Enhance agent core to orchestrate tool execution and handle tool results.
-- Integrate tool results with the streaming chat interface.
+3. **Security and Compliance**
+   - Data privacy considerations for AI processing
+   - GDPR compliance for conversation storage
+   - Security best practices for AI-driven operations
+   - Rate limiting and abuse prevention strategies

@@ -10,8 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-require_once __DIR__ . '/class-response-stream-parser.php';
-
 class Wordsurf_Agent_Core {
     /**
      * System prompt manager
@@ -38,23 +36,11 @@ class Wordsurf_Agent_Core {
      */
     private $openai_client;
     /**
-     * Stream parser
-     *
-     * @var Wordsurf_Response_Stream_Parser
-     */
-    private $stream_parser;
-    /**
      * In-memory message history (per page load)
      *
      * @var array
      */
     private $message_history = [];
-    /**
-     * Function to call for streaming output to the client.
-     *
-     * @var callable|null
-     */
-    private $stream_output_callback = null;
     /**
      * Stores tool calls from a single assistant response.
      *
@@ -69,70 +55,11 @@ class Wordsurf_Agent_Core {
         $this->system_prompt   = new Wordsurf_System_Prompt();
         $this->context_manager = new Wordsurf_Context_Manager();
         $this->tool_manager    = new Wordsurf_Tool_Manager();
-        $this->stream_parser   = new Wordsurf_Response_Stream_Parser();
         
         $api_key = get_option('wordsurf_openai_api_key', '');
         $this->openai_client = new Wordsurf_OpenAI_Client($api_key);
         
         $this->reset_message_history();
-        $this->setup_parser_callbacks();
-    }
-
-    /**
-     * Set up the callbacks for the stream parser.
-     */
-    private function setup_parser_callbacks() {
-        $this->stream_parser->on('onToolStart', function($tool_name, $tool_call_id) {
-            $this->send_sse_event('system', ['content' => "Thinking... Using tool: `{$tool_name}`..."]);
-        });
-
-        $this->stream_parser->on('onToolEnd', function($tool_call_object) {
-            $tool_name = $tool_call_object['name'];
-            $tool_call_id = $tool_call_object['call_id'];
-            $arguments = json_decode($tool_call_object['arguments'], true);
-
-            // Execute the tool
-            error_log("Wordsurf DEBUG: Executing tool '{$tool_name}' with ID '{$tool_call_id}'.");
-            $result = $this->tool_manager->execute_tool($tool_name, $arguments);
-            error_log("Wordsurf DEBUG: Tool '{$tool_name}' executed. Result: " . json_encode($result));
-
-            // Store tool execution for future context (if it's a preview tool)
-            if (isset($result['preview']) && $result['preview'] === true) {
-                $this->store_tool_execution($tool_name, $arguments, $result);
-            }
-
-            $this->send_sse_event('tool_end', [
-                'name' => $tool_name,
-                'id' => $tool_call_id,
-                'result' => $result
-            ]);
-
-            // Store the original tool call and its result for the follow-up API call.
-            $this->pending_tool_calls[] = [
-                'tool_call_object' => $tool_call_object,
-                'result' => $result,
-            ];
-            error_log("Wordsurf DEBUG: Added tool result to pending calls. Count: " . count($this->pending_tool_calls));
-        });
-
-        $this->stream_parser->on('onTextDelta', function($text_delta) {
-            $this->send_sse_event('text', ['content' => $text_delta]);
-        });
-    }
-
-    /**
-     * Sends a Server-Sent Event (SSE) to the client.
-     *
-     * @param string $type The event type (e.g., 'text', 'tool_start').
-     * @param array $data The data payload for the event.
-     */
-    private function send_sse_event($type, $data) {
-        $event_data = json_encode(['type' => $type, 'data' => $data]);
-        $sse_string = "data: {$event_data}\n\n";
-        
-        if (is_callable($this->stream_output_callback)) {
-            call_user_func($this->stream_output_callback, $sse_string);
-        }
     }
 
     /**
@@ -174,21 +101,23 @@ class Wordsurf_Agent_Core {
      * Handle incoming chat request (main public entry point)
      *
      * @param array $request_data The request data (messages, post_id, etc.)
-     * @param callable|null $stream_callback Optional callback for streaming output
      */
-    public function handle_chat_request($request_data, $stream_callback = null) {
-        $this->stream_output_callback = $stream_callback;
-        
+    public function handle_chat_request($request_data) {
         $messages = $request_data['messages'] ?? [];
         $post_id  = $request_data['post_id'] ?? null;
         
         // Start the first turn. The underlying cURL call is blocking and will complete before moving on.
-        $this->start_chat_turn($messages, $post_id);
+        $full_response = $this->start_chat_turn($messages, $post_id);
+        
+        // After the stream is complete, delegate processing to the Tool Manager.
+        $this->pending_tool_calls = $this->tool_manager->process_and_execute_tool_calls($full_response);
 
-        // After the first stream is complete, check if we need to make a follow-up call.
-        if ($this->has_pending_tool_calls()) {
+        // After processing, check if we need to make a follow-up call.
+        if ($this->has_pending_tool_calls() && !$this->has_preview_tools()) {
             error_log('Wordsurf DEBUG: Making follow-up call for tool results...');
             $this->make_follow_up_call();
+        } else if ($this->has_preview_tools()) {
+            error_log('Wordsurf DEBUG: Preview tools detected, skipping auto follow-up. User decision required first.');
         } else {
             error_log('Wordsurf DEBUG: No pending tool calls, skipping follow-up.');
         }
@@ -196,15 +125,15 @@ class Wordsurf_Agent_Core {
 
     /**
      * This is the main entry point for a streaming conversation turn.
+     * It initiates the stream and returns the full response body for later processing.
      *
-     * @param array $messages The full message history from the frontend
-     * @param array $context Optional context (e.g., post info, conversation history)
-     * @return void
+     * @param array $messages The full message history from the frontend.
+     * @param int|null $post_id The ID of the current post.
+     * @return string The full, raw response from the OpenAI API.
      */
     private function start_chat_turn($messages, $post_id = null) {
         $this->message_history = $messages ?: [];
         $this->pending_tool_calls = []; // Clear any previous tool calls
-        $this->stream_parser->reset();
 
         // Build and prepend the system prompt for the first turn.
         $context = $this->context_manager->get_context($post_id);
@@ -219,8 +148,8 @@ class Wordsurf_Agent_Core {
             'tools' => $tool_schemas,
         ];
 
-        // The client will stream raw chunks to our parser.
-        $this->openai_client->stream_request($body, [$this->stream_parser, 'parse']);
+        // The client streams raw chunks directly and returns the full response.
+        return $this->openai_client->stream_request($body);
     }
 
     /**
@@ -233,138 +162,69 @@ class Wordsurf_Agent_Core {
     }
     
     /**
-     * After the initial API call, if tools were used, this method is called
-     * to send the tool results back to the model for a final text response.
+     * Checks if there are preview tools that require user decisions
+     *
+     * @return boolean
+     */
+    private function has_preview_tools() {
+        foreach ($this->pending_tool_calls as $pending_call) {
+            $result = $pending_call['result'];
+            $tool_name = $pending_call['tool_call_object']['name'];
+            
+            // Check if this is a preview tool (tools that require user acceptance)
+            if (in_array($tool_name, ['edit_post', 'insert_content', 'write_to_post']) && 
+                isset($result['preview']) && $result['preview'] === true) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Makes a follow-up API call with the results of the tool executions.
+     * This continues the conversation and allows the AI to summarize results.
      */
     private function make_follow_up_call() {
-        // Per the Responses API docs, we append the tool call and its output to the history.
-        // These are role-less objects.
+        error_log("Wordsurf DEBUG: Preparing follow-up call with " . count($this->pending_tool_calls) . " tool results.");
 
-        foreach ($this->pending_tool_calls as $pending_call) {
-            // 1. Append the original function_call object from the model's response.
-            $this->message_history[] = $pending_call['tool_call_object'];
-
-            // 2. Append the result of that function call.
-            $this->message_history[] = [
-                'type' => 'function_call_output',
-                'call_id' => $pending_call['tool_call_object']['call_id'],
-                'output' => json_encode($pending_call['result'])
+        // First, add the assistant's last message (which contained the tool calls) to history.
+        // Since we don't have the message content here, we need a placeholder or reconstruct it.
+        // For now, we'll construct the tool_calls part of the message.
+        $tool_calls_for_history = [];
+        foreach ($this->pending_tool_calls as $call) {
+            $tool_calls_for_history[] = [
+                'type' => 'function_call',
+                'id' => $call['tool_call_object']['call_id'],
+                'name' => $call['tool_call_object']['name'],
+                'arguments' => $call['tool_call_object']['arguments'],
             ];
         }
-
-        // 3. Reset state for the next turn.
-        $this->pending_tool_calls = [];
-        $this->stream_parser->reset();
-        
-        $tool_schemas = $this->tool_manager->get_tool_schemas();
-        
-        // The new `input` array for the follow-up call contains the full history.
-        $body = [
-            'model'  => 'gpt-4.1',
-            'input'  => $this->message_history,
-            'tools'  => $tool_schemas,
-            'stream' => true,
-        ];
-        
-        error_log('Wordsurf Follow-up OpenAI Streaming Request: ' . json_encode($body, JSON_UNESCAPED_SLASHES));
-
-        // The client will stream raw chunks to our parser.
-        $this->openai_client->stream_request($body, [$this->stream_parser, 'parse']);
-    }
-
-    /**
-     * Execute a tool
-     *
-     * @param string $tool_name
-     * @param array $parameters
-     * @return array
-     */
-    public function execute_tool($tool_name, $parameters = []) {
-        return $this->tool_manager->execute_tool($tool_name, $parameters);
-    }
-
-    /**
-     * Append assistant tool call and tool result to message history
-     */
-    public function append_tool_call_and_result($function_call, $result) {
-        // Append assistant's tool call message
         $this->append_message([
             'role' => 'assistant',
-            'content' => null,
-            'tool_calls' => [[
-                'id' => $function_call['id'],
-                'type' => 'function',
-                'function' => [
-                    'name' => $function_call['name'],
-                    'arguments' => $function_call['arguments']
-                ]
-            ]]
+            'content' => null, // No text content in a tool-calling message
+            'tool_calls' => $tool_calls_for_history,
         ]);
-        // Append tool result message
-        $this->append_message([
-            'role' => 'tool',
-            'tool_call_id' => $function_call['id'],
-            'content' => json_encode($result)
-        ]);
-    }
-
-    /**
-     * Store tool execution data for future AI context awareness
-     * 
-     * @param string $tool_name
-     * @param array $arguments
-     * @param array $result
-     */
-    private function store_tool_execution($tool_name, $arguments, $result) {
-        // Get post_id from arguments or context
-        $post_id = $arguments['post_id'] ?? null;
-        if (!$post_id) {
-            return; // Can't store without post context
+        
+        // Then, add a message for each tool's result.
+        foreach ($this->pending_tool_calls as $call) {
+            $this->append_message([
+                'role' => 'tool',
+                'tool_call_id' => $call['tool_call_object']['call_id'],
+                'content' => json_encode($call['result']),
+            ]);
         }
+        
+        // Clear the pending calls as they are now in the history.
+        $this->pending_tool_calls = [];
 
-        $user_id = get_current_user_id();
-        $history_key = "wordsurf_pending_tools_{$user_id}_{$post_id}";
-        
-        // Get existing pending tools or create new array
-        $pending_tools = get_transient($history_key) ?: [];
-        
-        // Create tool execution entry
-        $tool_entry = [
-            'timestamp' => current_time('mysql'),
-            'tool_name' => $tool_name,
-            'arguments' => $arguments,
-            'result' => $result,
-            'status' => 'pending_user_feedback', // Will be updated when user accepts/rejects
-            'post_id' => $post_id
+        // Now, make a new request to the API with the updated history.
+        $body = [
+            'model' => 'gpt-4.1',
+            'input' => $this->message_history,
+            'tools' => $this->tool_manager->get_tool_schemas(),
         ];
         
-        // Add to pending tools (these will be moved to history when user provides feedback)
-        $pending_tools[] = $tool_entry;
-        
-        // Keep only last 10 pending tools to prevent unlimited growth
-        if (count($pending_tools) > 10) {
-            $pending_tools = array_slice($pending_tools, -10);
-        }
-        
-        // Store for 2 hours (shorter than feedback history since these should get resolved quickly)
-        set_transient($history_key, $pending_tools, 2 * HOUR_IN_SECONDS);
-        
-        error_log("Wordsurf DEBUG: Stored tool execution - Tool: {$tool_name}, Post: {$post_id}, Pending tools: " . count($pending_tools));
-    }
-
-    /**
-     * Get pending tool executions for a specific post and user
-     * 
-     * @param int $post_id
-     * @param int|null $user_id Optional user ID, defaults to current user
-     * @return array Pending tool executions
-     */
-    public function get_pending_tools($post_id, $user_id = null) {
-        if (!$user_id) {
-            $user_id = get_current_user_id();
-        }
-        
-        $history_key = "wordsurf_pending_tools_{$user_id}_{$post_id}";
-        return get_transient($history_key) ?: [];
+        // This follow-up call is also streamed directly to the client.
+        $this->openai_client->stream_request($body);
     }
 } 

@@ -17,6 +17,10 @@
     "test:unit": "wp-scripts test-unit-js"
   },
   "devDependencies": {
+    "@wordpress/interface": "^9.11.0",
     "@wordpress/scripts": "^26.19.0"
+  },
+  "dependencies": {
+    "diff": "^8.0.2"
   }
-} 
+}

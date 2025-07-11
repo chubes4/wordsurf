@@ -2,339 +2,83 @@
 
 ## Overview
 
-Wordsurf is an agentic WordPress plugin that integrates AI agents directly into the WordPress editor. The plugin provides a chat interface where users can interact with an AI assistant that has access to WordPress content through a modular tool system.
+Wordsurf is an agentic WordPress plugin that integrates AI agents directly into the editor. The plugin provides a chat interface where users can interact with an AI assistant that has access to modify WordPress content through a modular tool system.
 
-## Core Architecture
+## Core Architecture: Direct Streaming
 
-### Agent System
-- **Agent Core** (`Wordsurf_Agent_Core`): Orchestrates the AI agent's decision-making and tool execution
-- **Chat Handler** (`Wordsurf_Chat_Handler`): Manages WordPress hooks and routes chat requests to the agent
-- **Response Stream Parser** (`Wordsurf_Response_Stream_Parser`): Parses OpenAI streaming responses and extracts tool calls
-- **Tool Manager** (`Wordsurf_Tool_Manager`): Manages tool registration and execution
-- **Context Manager** (`Wordsurf_Context_Manager`): Provides post context and site information to the agent
-- **System Prompt** (`Wordsurf_System_Prompt`): Builds the system prompt with context and tool descriptions
+The plugin's architecture is designed for a robust and low-latency user experience by streaming data directly from the OpenAI API to the browser. The PHP backend acts as a simple, authenticated proxy during the stream, and then handles heavier logic like tool execution after the stream is complete.
 
-### API Layer
-- **OpenAI Client** (`Wordsurf_OpenAI_Client`): Pure HTTP client for OpenAI API communication
-- **REST API Handler** (`Wordsurf_REST_API`): Handles WordPress REST API endpoints
-- **Chat Handler** (`Wordsurf_Chat_Handler`): Direct streaming endpoint that bypasses REST API framework
+### High-Level Data Flow
 
-### Frontend
-- **WordsurfChatStream** (`src/js/editor/WordsurfChatStream.js`): Main chat interface component
-- **InlineDiffHighlight** (`src/js/editor/InlineDiffHighlight.js`): Simplified orchestrator for diff highlighting using modular tool system
-- **Modular Diff System** (`src/js/editor/diff/`): Extensible architecture for diff functionality
-  - **BaseDiffHighlight** (`diff/BaseDiffHighlight.js`): Shared functionality for all diff types (buttons, cleanup, utilities)
-  - **EditPostDiff** (`diff/EditPostDiff.js`): WordPress-style word-level diff highlighting for edit_post tool
-  - **InsertContentDiff** (`diff/InsertContentDiff.js`): Position-based insertion previews for insert_content tool
-  - **WriteToPostDiff** (`diff/WriteToPostDiff.js`): Simple replacement highlighting for write_to_post tool
-  - **DiffUtils** (`diff/DiffUtils.js`): Core diff algorithms (LCS, word-level diffs, tokenization)
-  - **Tool Registry** (`diff/index.js`): Factory pattern for creating appropriate diff handlers
-- **ToolCall** (`src/js/editor/ToolCall.js`): Displays tool execution status and results  
-- **Chat Stream API** (`src/js/editor/chatStreamApi.js`): Handles communication with the backend
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend (JS)
+    participant Backend (PHP)
+    participant OpenAI API
 
-## Tool System Architecture
-
-### Tool Granularity Strategy
-
-The plugin implements a two-tier tool system based on context scope:
-
-#### Post-Level Context (Current Focus)
-Tools that operate within the context of a single post being edited:
-
-1. **read_post** ✅ (Implemented)
-   - Reads and analyzes WordPress post content
-   - Provides comprehensive post information including title, content, excerpt, metadata, and statistics
-   - File: `includes/agent/core/tools/read_post.php`
-
-2. **edit_post** ✅ (Implemented with Editor Overlay)
-   - Regex-based search and replace functionality with real-time preview
-   - Allows precise, surgical edits to post content
-   - Examples: fix typos, modify single sentences, add content to specific paragraphs
-   - Supports content, title, and excerpt editing
-   - **Editor Overlay Mode**: Shows inline diff directly in editor content area
-   - **Contextual Placement**: Diff appears where changes will be made, not in sidebar
-   - **Direct Editor Integration**: Applies changes to Gutenberg editor state when accepted
-   - **Cursor-Style UX**: Modern inline suggestion interface with accept/reject buttons
-   - **Visual Diff**: Professional highlighting of additions/deletions with → indicators
-   - Files: 
-     - `includes/agent/core/tools/edit_post.php` (backend tool)
-     - `src/js/editor/InlineDiffHighlight.js` (inline diff highlighting component)
-     - `assets/css/editor/inline-diff-highlight.css` (inline diff styling)
-
-3. **insert_content** ✅ (Implemented with Editor Overlay)
-   - Adds new content to posts without modifying existing content
-   - Three insertion modes: beginning, end, after_paragraph
-   - Automatically formats content as WordPress blocks
-   - **Editor Overlay Mode**: Shows inline highlights with blue dashed borders
-   - **Visual Distinction**: Different styling from edit_post to indicate insertion vs replacement
-   - File: `includes/agent/core/tools/insert_content.php`
-
-4. **write_to_post** ✅ (Implemented with Full Preview)
-   - Replaces entire post content with new content from scratch
-   - Complete content replacement with optional title and excerpt updates
-   - Automatic WordPress block formatting
-   - **Full Preview Mode**: Shows modal overlay with complete new content preview
-   - **Statistics Display**: Shows word count changes, paragraph differences
-   - **Before/After Comparison**: Comprehensive preview of all changes
-   - **Content Statistics**: Detailed analytics on content transformation
-   - File: `includes/agent/core/tools/write_to_post.php`
-
-#### Site-Level Context (Future Implementation)
-Tools that operate across multiple posts and site-wide operations:
-- Analyze multiple posts
-- Cross-post content operations
-- Site-wide content strategy
-- Taxonomy management
-- Media handling
-
-### Tool Implementation Pattern
-
-All tools follow the `Wordsurf_BaseTool` interface:
-
-```php
-interface Wordsurf_BaseTool {
-    public function get_name(): string;
-    public function get_description(): string;
-    public function get_schema(): array;
-    public function execute(array $parameters): array;
-}
+    User->>Frontend (JS): Sends message
+    Frontend (JS)->>Backend (PHP): Initiates stream (handle_stream_chat)
+    
+    note right of Backend (PHP): Turn 1: Get AI Response + Tool Calls
+    Backend (PHP)->>OpenAI API: stream_request()
+    
+    loop Raw SSE Stream (Turn 1)
+        OpenAI API-->>Backend (PHP): Returns raw event chunk (e.g., text delta)
+        Backend (PHP)-->>Frontend (JS): Immediately echoes raw chunk
+        Frontend (JS)-->>Frontend (JS): Parses native event and updates UI
+    end
+    
+    note right of Backend (PHP): Stream 1 ends. Backend now has the<br/>full, buffered response from Turn 1.
+    
+    Backend (PHP)->>Backend (PHP): ToolManager parses buffered response,<br/>finds function_call, and executes the tool.
+    
+    note right of Backend (PHP): Turn 2: Report Tool Result + Get Summary
+    Backend (PHP)->>OpenAI API: stream_request() with tool result
+    
+    loop Raw SSE Stream (Turn 2)
+        OpenAI API-->>Backend (PHP): Returns raw event chunk (AI summary text)
+        Backend (PHP)-->>Frontend (JS): Immediately echoes raw chunk
+        Frontend (JS)-->>Frontend (JS): Parses native event and updates UI
+    end
+    
+    note right of Backend (PHP): Stream 2 ends. Turn is complete.
 ```
 
-### Tool Registration
+### Backend Components
 
-Tools are registered in `Wordsurf_Tool_Manager` and automatically included in the OpenAI function calling schema. The agent can dynamically discover and use available tools based on the user's request.
+- **`Wordsurf_Chat_Handler`**: The main entry point for requests from the frontend. It verifies the user's nonce and permissions, sets up the `text/event-stream` headers, and calls the `Agent_Core` to handle the request. It accepts both GET and POST to be compatible with `EventSource`.
 
-## Modular Diff Architecture
+- **`Wordsurf_Agent_Core`**: The central orchestrator. It manages the conversation history, constructs the system prompt, and coordinates the two-turn process for tool calls. It does **not** parse the stream itself.
 
-### Tool-Specific Diff System
+- **`Wordsurf_OpenAI_Client`**: A lightweight HTTP client. Its `stream_request` method is the heart of the direct streaming model. It opens a cURL connection to OpenAI and does two things simultaneously:
+    1.  `echo`es every raw data chunk directly to the browser.
+    2.  Buffers the entire raw response into a string, which it returns once the stream is complete.
 
-The plugin implements a **modular, extensible diff system** where each tool type has its own dedicated diff handler with tool-specific logic:
+- **`Wordsurf_Tool_Manager`**: Manages the lifecycle of all tools. After a stream is complete, its `process_and_execute_tool_calls` method is given the full, buffered API response. It is responsible for finding any `function_call` requests, executing the corresponding tools, and returning the results to the `Agent_Core`.
 
-#### Architecture Overview
-```
-InlineDiffHighlight (Orchestrator)
-    ↓
-Tool Registry (Factory Pattern)
-    ↓
-Tool-Specific Diff Handler
-    ↓
-BaseDiffHighlight (Shared Functionality)
-```
+- **`Wordsurf_Context_Manager`**: Gathers contextual information about the current post to be included in the system prompt.
 
-#### 1. Diff Handler Factory
-- **Tool Registry** (`diff/index.js`) maps tool types to handler classes
-- **Factory Function** `createDiffHandler()` instantiates appropriate handler
-- **Error Handling** for unknown tool types with helpful error messages
-- **Extensible** - add new tools without modifying existing code
+### Frontend Components
 
-#### 2. Tool-Specific Handlers
+- **`WordsurfPlugin.js`**: The main plugin container component. It initializes the `useChatHandler` hook and manages the state for the UI, including pending diffs.
 
-**EditPostDiff** (Word-level WordPress-style diffs):
-- **Visual**: Light green background with darker green for changed words
-- **Tooltip**: Red background showing original text with deletion markers
-- **Algorithm**: LCS-based word diff with tokenization preserving punctuation
-- **Acceptance**: Actually replaces text content in the editor DOM
+- **`useChatHandler` (in `ChatHandler.js`)**: A React hook that manages the entire state of a chat session. It sends messages, receives events from the stream, and updates the UI. It uses a `requestAnimationFrame` loop to batch text updates, ensuring a smooth, non-janky typing effect.
 
-**InsertContentDiff** (Position-based insertion previews):
-- **Visual**: Dashed green border with insertion preview styling
-- **Positioning**: Beginning, end, or after specific paragraphs
-- **Algorithm**: TreeWalker to find insertion points in DOM
-- **Acceptance**: Removes preview (backend handles actual insertion)
+- **`streamChatMessage` (in `StreamApi.js`)**: This function uses the native browser **`EventSource`** API to connect to the backend. `EventSource` is specifically designed for handling Server-Sent Events (SSE) and is more robust and simpler than a manual `fetch` implementation. It listens for named events sent from OpenAI (e.g., `response.output_text.delta`) and passes them to the `useChatHandler`.
 
-**WriteToPostDiff** (Simple replacement highlighting):
-- **Visual**: Standard green highlighting with simple tooltips
-- **Algorithm**: Direct text matching and replacement
-- **Acceptance**: Default behavior (backend handles replacement)
+- **`UIComponents.js`**: Contains the presentational React components for the chat interface, such as the message bubbles, input area, and "Thinking..." indicator.
 
-#### 3. Shared Base Functionality
-**BaseDiffHighlight** provides common features:
-- **Action Buttons**: Accept (✓) and reject (✗) with tool-specific titles
-- **Cleanup System**: Element tracking and DOM restoration
-- **Text Finding**: TreeWalker utilities for DOM text search
-- **Event Handling**: Standardized accept/reject callbacks
+### OpenAI Responses API
 
-#### 4. Diff Utils & Algorithms
-**DiffUtils** contains core algorithms:
-- **Word Tokenization**: Preserves whitespace and punctuation
-- **LCS Algorithm**: Longest Common Subsequence for accurate diffs
-- **Merge Operations**: Combines consecutive operations
-- **WordPress-style Tooltips**: Shows removed (red) and added (green) content
+⚠️ **CRITICAL ARCHITECTURAL DECISION - DO NOT CHANGE** ⚠️
 
-#### 5. CSS Architecture
-- **Consistent Styling**: Light green background (#d4edda) for all diff blocks
-- **Tool-Specific Elements**: Darker green (#28a745) for changed words
-- **Tooltip System**: Red background (#f8d7da) for showing original content
-- **Responsive Design**: Mobile-friendly buttons and positioning
-- **Animation System**: Golden flash intro, smooth hover transitions
+The plugin uses OpenAI's **Responses API** (`/v1/responses`) with the `gpt-4.1` model. This is a deliberate architectural decision that must **NOT** be reverted. The entire backend and frontend are built to handle the specific event-based format of this API.
 
-#### 6. Adding New Diff Tools
-```javascript
-// 1. Create new tool class extending BaseDiffHighlight
-class NewToolDiff extends BaseDiffHighlight {
-  constructor(diffData, editorDocument, onAccept, onReject) {
-    super(diffData, editorDocument, onAccept, onReject);
-    this.toolType = 'new_tool';
-  }
-  
-  createHighlight() {
-    // Tool-specific highlighting logic
-  }
-}
+- **Endpoint**: `https://api.openai.com/v1/responses`
+- **Request Format**: Uses an `input` field for the message history.
+- **Tool Result Format**: Uses a `function_call_output` object type for tool results.
 
-// 2. Register in tool registry
-const TOOL_HANDLERS = {
-  'edit_post': EditPostDiff,
-  'insert_content': InsertContentDiff,
-  'write_to_post': WriteToPostDiff,
-  'new_tool': NewToolDiff,  // ← Just add this line!
-};
-```
+## Tool System
 
-**Benefits of this architecture**:
-- 🧹 **Clean Code**: Each tool is self-contained (~80-115 lines)
-- 🔌 **Extensible**: Add tools without touching existing code
-- 🧪 **Testable**: Each tool can be unit tested independently
-- 📚 **Self-Documenting**: File names clearly indicate purpose
-- 🚀 **Maintainable**: Zero conditionals in main component
-
-## Data Flow
-
-### Chat Request Flow
-1. User sends message via frontend chat interface
-2. `WordsurfChatStream` sends request to `Wordsurf_Chat_Handler`
-3. Chat handler validates request and calls `Wordsurf_Agent_Core::handle_chat_request()`
-4. Agent core builds system prompt with context and available tools
-5. Agent core sends request to OpenAI via `Wordsurf_OpenAI_Client`
-6. OpenAI responds with streaming data containing tool calls or text
-7. `Wordsurf_Response_Stream_Parser` parses the stream and fires events
-8. Tool calls are executed via `Wordsurf_Tool_Manager`
-9. Results are sent back to OpenAI for final response
-10. Final response is streamed back to the frontend
-
-### Tool Execution Flow
-1. Agent decides to use a tool based on user request
-2. OpenAI returns function call with parameters
-3. Parser extracts tool call and fires `onToolEnd` event
-4. Agent core executes tool via `Wordsurf_Tool_Manager`
-5. Tool result is stored for follow-up API call
-6. Agent makes follow-up call with tool results
-7. OpenAI generates final response incorporating tool results
-
-## File Structure
-
-```
-wordsurf/
-├── assets/                 # Compiled assets
-│   ├── css/               # Stylesheets
-│   └── js/                # Compiled JavaScript
-├── includes/              # PHP backend
-│   ├── admin/            # Admin interface
-│   │   ├── class-admin.php
-│   │   ├── class-settings.php
-│   │   └── editor/
-│   │       └── class-editor-interface.php
-│   ├── agent/            # AI agent core
-│   │   ├── context/
-│   │   │   └── class-context-manager.php
-│   │   ├── core/
-│   │   │   ├── class-agent-core.php
-│   │   │   ├── class-chat-handler.php
-│   │   │   ├── class-response-stream-parser.php
-│   │   │   ├── class-system-prompt.php
-│   │   │   ├── class-tool-manager.php
-│   │   │   └── tools/
-│   │   │       ├── basetool.php
-│   │   │       ├── read_post.php
-│   │   │       ├── edit_post.php
-│   │   │       ├── insert_content.php
-│   │   │       └── write_to_post.php
-│   │   └── tools/        # Tool implementations
-│   └── api/              # API handlers
-│       ├── class-api-base.php
-│       ├── class-openai-client.php
-│       └── class-rest-api.php
-├── src/                   # Source files
-│   └── js/               # JavaScript source
-│       ├── admin/
-│       │   └── index.js
-│       └── editor/
-│           ├── index.js              # WordPress plugin entry
-│           ├── WordsurfChatStream.js # Chat interface component
-│           ├── InlineDiffHighlight.js # Diff orchestrator (simplified)
-│           ├── ToolCall.js          # Tool execution status
-│           ├── chatStreamApi.js     # Backend communication
-│           └── diff/                # Modular diff system
-│               ├── BaseDiffHighlight.js    # Shared diff functionality
-│               ├── EditPostDiff.js         # Word-level diffs
-│               ├── InsertContentDiff.js    # Insertion previews
-│               ├── WriteToPostDiff.js      # Simple replacements
-│               ├── DiffUtils.js            # Core diff algorithms
-│               └── index.js                # Tool registry & factory
-│           ├── index.js
-│           ├── ToolCall.js
-│           └── WordsurfChatStream.js
-├── wordsurf.php          # Main plugin file
-├── package.json          # Node.js dependencies
-└── webpack.config.js     # Build configuration
-```
-
-## Key Components
-
-### Wordsurf_Agent_Core
-- Manages the agent's conversation state
-- Orchestrates tool execution
-- Handles streaming responses
-- Coordinates follow-up API calls after tool execution
-
-### Wordsurf_Response_Stream_Parser
-- Parses OpenAI streaming responses
-- Extracts tool calls and text deltas
-- Fires events for tool execution and text display
-- Handles the complex event structure of OpenAI's streaming API
-
-### Wordsurf_Tool_Manager
-- Registers and manages available tools
-- Executes tools with proper error handling
-- Provides tool schemas for OpenAI function calling
-- Maintains tool descriptions and metadata
-
-### Wordsurf_Context_Manager
-- Provides post context to the agent
-- Includes post metadata, categories, tags
-- Supplies site information and user context
-- Manages context window for large posts
-
-## Security Considerations
-
-- All requests are validated with WordPress nonces
-- User capabilities are checked before tool execution
-- Input sanitization is applied to all user inputs
-- Tool execution is isolated and error-handled
-- API keys are stored securely in WordPress options
-
-## Performance Considerations
-
-- Streaming responses provide real-time feedback
-- Tool execution is optimized for WordPress database queries
-- Context management prevents token limit issues
-- Caching can be implemented for frequently accessed data
-
-## Extensibility
-
-The plugin is designed for easy extension:
-
-1. **New Tools**: Create new tool classes extending `Wordsurf_BaseTool`
-2. **New Context**: Extend `Wordsurf_Context_Manager` for additional context
-3. **New UI Components**: Add new React components to the frontend
-4. **New API Endpoints**: Extend the REST API for additional functionality
-
-## Current Status
-
-- ✅ Basic agent architecture implemented
-- ✅ Streaming chat interface working
-- ✅ Tool system framework established
-- ✅ read_post tool implemented and working
-- ✅ edit_post tool implemented and working with inline diff preview
-- ✅ insert_content tool implemented and working with insertion highlighting
-- ✅ write_to_post tool implemented and working with full content preview
-- 📋 Site-level tools planned for future admin interface
+All tools are managed by the `Wordsurf_Tool_Manager`. They are defined as classes that implement a basic interface for getting their name, description, and schema, and for executing their logic. Tool execution is handled entirely on the backend after the initial stream from the AI is complete.
