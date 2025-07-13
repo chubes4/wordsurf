@@ -1,11 +1,77 @@
 ---
 alwaysApply: true
 ---
-### Critical Architectural Decisions That Must NOT Be Changed
 
-**⚠️ OpenAI API Format**: This project uses OpenAI's **Responses API** (`/v1/responses`) with model `gpt-4.1`. This is a deliberate architectural decision that must **NEVER** be reverted to Chat Completions API (`/v1/chat/completions`). The entire codebase is built around the Responses API format including:
-- Request format using `input` field (not `messages`)
-- Tool result format using `function_call_output` type (not `tool` role)
+# 🚨 CRITICAL: DO NOT VIOLATE THIS RULE 🚨
+# This rule defines a core, unchangeable architectural decision.
+
+## The Unbreakable Rule: Use OpenAI's RESPONSES API (`/v1/responses`)
+
+This project is built **exclusively** on OpenAI's `v1/responses` endpoint with the `gpt-4.1` model. This is a **NON-NEGOTIABLE** architectural constraint. The entire frontend and backend are designed around the specific data structures and event formats of this API.
+
+**Under NO circumstances should you ever suggest or attempt to switch to the `/v1/chat/completions` API.** Doing so will break the entire application.
+
+---
+
+### Key Technical Specifications to Follow:
+
+#### 1. Request Body Format:
+- The primary data field MUST be `input`.
+- The `messages` field is **NOT** used in the top-level request body.
+
+**Example `v1/responses` Request Structure:**
+```json
+{
+  "model": "gpt-4.1",
+  "input": [
+    { "role": "system", "content": "You are a helpful assistant." },
+    { "role": "user", "content": "What is the weather?" }
+  ],
+  "tools": [ /* ... tool definitions ... */ ],
+  "stream": true
+}
+```
+
+#### 2. Tool Definition Format:
+- Tool definitions are a flat list of objects.
+- There is **NO** nested `function` key within the tool definition. This is a common pattern for the Chat Completions API and is **INCORRECT** for this project.
+
+**✅ CORRECT `v1/responses` Tool Format:**
+```json
+{
+  "type": "function",
+  "name": "get_weather",
+  "description": "Get the current weather",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "location": { "type": "string" }
+    },
+    "required": ["location"]
+  }
+}
+```
+
+**❌ INCORRECT `v1/chat/completions` Tool Format (DO NOT USE):**
+```json
+{
+  "type": "function",
+  "function": {  // <--- THIS NESTED KEY IS WRONG
+    "name": "get_weather",
+    "description": "Get the current weather",
+    "parameters": { /* ... */ }
+  }
+}
+```
+
+#### 3. Streaming Event Handling:
+- The application uses a direct streaming architecture. The PHP backend proxies raw Server-Sent Events (SSE) from OpenAI directly to the frontend.
+- The frontend uses the native `EventSource` API to parse these events.
+- **Note:** The `Wordsurf_Response_Stream_Parser` class is deprecated and has been removed. The core principle of handling `v1/responses` event types remains.
+
+---
+
+**Any attempt to deviate from the `v1/responses` API must be considered a critical error and immediately corrected.**
 - Streaming event handling in `Wordsurf_Response_Stream_Parser`
 
 Any suggestion to change to Chat Completions API should be **immediately rejected** and documented as incorrect.

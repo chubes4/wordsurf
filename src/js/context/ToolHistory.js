@@ -7,11 +7,8 @@
  * - User decision recording with tool-specific context
  */
 
-import {
-  createToolCallMessage,
-  createToolResultMessage,
-  createUserMessage
-} from '../editor/MessageFormatUtils';
+import { createUserMessage } from '../editor/MessageFormatUtils';
+import { createToolCallMessage, createToolResultMessage } from '../editor/MessageFormatUtils';
 
 export class ToolHistory {
   constructor() {

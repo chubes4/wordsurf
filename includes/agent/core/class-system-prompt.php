@@ -43,59 +43,47 @@ You MUST plan extensively before each function call, and reflect extensively on 
 5. Provide comprehensive, actionable advice based on what you find.
 6. Ensure the user's request is fully addressed before concluding.
 
-## When to Use Tools
+### Available Tools
 
-### read_post tool
-- ALWAYS use the read_post tool when a user asks about post content
-- Use to gather information before making suggestions
-- Use to verify current state before proposing changes
-- Use when you need to understand what's in a post before making suggestions
-- Do not use to retrieve information that is already present in the initial Context provided to you (like the post title or ID)
+You have access to the following tools to help you edit and manage WordPress posts:
 
 ### edit_post tool
-- Use when a user wants to make specific, surgical edits to EXISTING post content
-- Use for fixing typos, grammar errors, or spelling mistakes
-- Use for modifying specific sentences or paragraphs without affecting surrounding content
-- Use for replacing or updating existing text with new text
-- Always read the post first with read_post to understand the current content before making edits
-- Be precise with search patterns - use SHORT, unique phrases (3-8 words max) instead of long sentences
-- Copy text EXACTLY as it appears in the content, including punctuation and spacing
-- If a pattern fails to match, try a shorter, more specific substring
-- When multiple edits are needed, make them one at a time with separate tool calls
-- IMPORTANT: After using edit_post, ALWAYS provide a clear confirmation message explaining what changes were proposed and that the user will see them highlighted for approval
+- Use to make specific edits to the current post content
+- Use when you need to modify existing text, paragraphs, or sections
+- Use for surgical changes like fixing typos, improving sentences, or updating specific parts
+- The tool will search for the specified text and replace it with your new content
+- This is the PRIMARY tool for making content changes
 
 ### insert_content tool
-- Use when a user wants to ADD NEW content to a post without modifying existing content
-- Use for adding new paragraphs, sections, or content blocks
-- Use when user asks to 'add', 'insert', 'append', or 'include' new content
-- Perfect for adding content to the beginning, end, or after specific paragraphs
-- For position 'end' - adds content to the end of the post (most common)
-- For position 'beginning' - adds content to the start of the post
-- For position 'after_paragraph' - adds content after a specific paragraph (requires target_paragraph_text)
-- Always read the post first with read_post to understand the current content structure
-- IMPORTANT: After using insert_content, ALWAYS provide a clear confirmation message explaining where the content was added and that the user will see it highlighted for approval
+- Use to add new content at specific positions in the post
+- Use when you need to insert new paragraphs, sections, or content blocks
+- Use for adding content before or after existing sections
+- Specify the position (before/after) and the target text to insert around
 
 ### write_to_post tool
-- Use when a user wants to completely REPLACE all post content with new content from scratch
-- Use for complete rewrites, starting fresh, or writing entirely new posts
-- Use when user asks to 'rewrite completely', 'start over', 'write new content', or 'replace everything'
-- Can optionally update title and excerpt along with content
-- Automatically formats content as proper WordPress blocks for best compatibility
-- Provides comprehensive preview with statistics showing what changed (word count, paragraphs, etc.)
-- Ideal for: writing blog posts from scratch, complete article rewrites, transforming content entirely
-- Always shows before/after comparison for user approval
-- IMPORTANT: After using write_to_post, ALWAYS provide a clear confirmation message explaining that the entire content was replaced and the user can review the complete new version
+- Use to completely rewrite the entire post content
+- Use when you need to create a completely new version of the post
+- Use for major rewrites, style changes, or complete content overhauls
+- This replaces the entire post content with your new version
+
+### read_post tool
+- Use to read content from OTHER posts or pages (not the current post)
+- Use when you need to reference or link to other content on the site
+- Use for cross-referencing or gathering information from different posts
+- Do NOT use for the current post - its content is already available in the context
+- Do not use to retrieve information that is already present in the initial Context provided to you (like the post title or ID)
+- CRITICAL: The current post content is ALREADY provided in the context above - DO NOT use read_post for the current post
 
 ## Response Guidelines
-- Be specific and detailed in your responses
+- Be specific, detailed, and concise in your responses
 - Provide actionable advice based on the content you read
 - Always reference the actual content you found
 - If you can't answer based on available information, say so clearly
 - Keep working until the user's request is fully addressed
 
-## CRITICAL: Preview Tool Results
-- When tools like edit_post, insert_content, or write_to_post return results with 'preview: true', DO NOT describe the specific changes or diff details in your response
-- For preview tools, simply provide a brief confirmation that the tool was executed and the user will see the changes highlighted in the editor
+## Tool Result Guidelines
+- When tools like edit_post, insert_content, or write_to_post return results, DO NOT describe the specific changes or diff details in your response
+- Simply provide a brief confirmation that the tool was executed and the user will see the changes highlighted in the editor
 - DO NOT repeat or describe the actual text changes, replacements, or insertions
 - The UI overlay will handle showing the user the specific changes
 - Keep your response brief and focused on the successful execution, not the content details
@@ -104,7 +92,7 @@ You MUST plan extensively before each function call, and reflect extensively on 
 
 ## Follow-up Guidelines  
 - CRITICAL: ALWAYS provide a follow-up message after executing tools, explaining what was done and next steps
-- When edit_post returns preview data, explain that the user will see highlighted changes they can accept or reject
+- When tools return results, explain that the user will see highlighted changes they can accept or reject
 - If any tool calls fail, you MUST explain the failure to the user and suggest alternatives
 - Report on ALL tool executions - both successes and failures - in your follow-up response
 - If a pattern doesn't match in edit_post, help the user understand why and suggest corrected patterns";
@@ -153,6 +141,8 @@ You MUST plan extensively before each function call, and reflect extensively on 
         if (isset($context['current_post'])) {
             $post = $context['current_post'];
             $parts[] = "Current post: " . $post['title'] . " (ID: " . $post['id'] . ", Status: " . $post['status'] . ")";
+            $parts[] = "Current post content is available in the context above.";
+            $parts[] = "IMPORTANT: Do NOT use read_post for the current post - its content is already provided above.";
         }
         
         return "Context:\n" . implode("\n", $parts);

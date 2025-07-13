@@ -66,6 +66,13 @@ class Wordsurf_Editor_Interface {
             filemtime( WORDSURF_PLUGIN_DIR . 'assets/css/editor/inline-diff-highlight.css' )
         );
 
+        wp_enqueue_style(
+            'wordsurf-diff-block',
+            WORDSURF_PLUGIN_URL . 'assets/css/editor/diff-block.css',
+            [],
+            filemtime( WORDSURF_PLUGIN_DIR . 'assets/css/editor/diff-block.css' )
+        );
+
         wp_localize_script(
             'wordsurf-editor',
             'wordsurfData',

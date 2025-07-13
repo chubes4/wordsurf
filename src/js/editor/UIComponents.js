@@ -102,6 +102,38 @@ export const ChatInput = ({
 };
 
 /**
+ * Pending Changes Component - Revolutionary approach: just ready to clear diffs
+ */
+export const PendingChanges = ({ diffs, onAcceptAll, onRejectAll }) => {
+    if (!diffs || diffs.length === 0) {
+        return null;
+    }
+    console.log('PendingChanges: Rendering diff control UI for', diffs.length, 'diffs');
+
+    return (
+        <div className="wordsurf-pending-changes">
+            <div className="pending-changes-content">
+                <div className="pending-changes-actions">
+                    <button 
+                        className="button button-primary" 
+                        onClick={onAcceptAll}
+                        style={{ marginRight: '8px' }}
+                    >
+                        Accept All
+                    </button>
+                    <button 
+                        className="button button-secondary" 
+                        onClick={onRejectAll}
+                    >
+                        Reject All
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/**
  * Main Chat Interface Component
  */
 export const ChatInterface = ({ 
@@ -110,7 +142,11 @@ export const ChatInterface = ({
     inputValue, 
     onInputChange, 
     onSend, 
-    isStreaming 
+    isStreaming,
+    hasStreamingAssistant,
+    pendingDiffs,
+    onAcceptAllChanges,
+    onRejectAllChanges
 }) => {
     const chatWindowRef = React.useRef(null);
 
@@ -127,8 +163,8 @@ export const ChatInterface = ({
                 {messages.map((msg, idx) => (
                     <ChatMessage key={idx} message={msg} />
                 ))}
-                
-                {isWaiting && (
+                {/* Show 'Thinking...' if waiting and no streaming assistant message */}
+                {isWaiting && !hasStreamingAssistant && (
                     <div className="chat-message agent">
                         <div className="chat-bubble">
                             Thinking...
@@ -138,8 +174,13 @@ export const ChatInterface = ({
                         </div>
                     </div>
                 )}
+                {/* Show pending changes if any */}
+                <PendingChanges 
+                    diffs={pendingDiffs}
+                    onAcceptAll={onAcceptAllChanges}
+                    onRejectAll={onRejectAllChanges}
+                />
             </div>
-            
             <ChatInput
                 value={inputValue}
                 onChange={onInputChange}

@@ -57,6 +57,7 @@ class Wordsurf_Context_Manager {
         return array(
             'id' => $post_id,
             'title' => $post->post_title,
+            'content' => $post->post_content,
             'status' => $post->post_status,
             'type' => $post->post_type,
             'categories' => wp_get_post_categories($post_id, array('fields' => 'names')),

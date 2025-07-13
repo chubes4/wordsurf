@@ -47,7 +47,8 @@ export class ChatHistory {
    * Get messages formatted for UI display (excludes tool calls/results)
    */
   getUIMessages() {
-    return toUIFormat(this.messages);
+    // With the new unified message format, we just filter out non-UI messages.
+    return this.messages.filter(msg => msg.type === 'text' || msg.type === 'tool');
   }
 
   /**
@@ -59,49 +60,65 @@ export class ChatHistory {
   }
 
   /**
-   * Adds or updates the last assistant message with new content.
-   * If the last message is from the assistant and is streaming, it appends content.
-   * Otherwise, it adds a new streaming assistant message.
-   */
-  addOrUpdateAssistantMessage(contentChunk) {
-    const lastMessage = this.getLastMessage();
-    if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
-      lastMessage.content += contentChunk;
-    } else {
-      this.messages.push({
-        role: 'assistant',
-        content: contentChunk,
-        isStreaming: true,
-      });
-    }
-    return this;
-  }
-
-  /**
-   * Finalizes the last message by setting its streaming status to false.
-   */
-  finalizeLastMessage() {
-    const lastMessage = this.getLastMessage();
-    if (lastMessage && lastMessage.isStreaming) {
-      lastMessage.isStreaming = false;
-    }
-    return this;
-  }
-
-  /**
    * Add an assistant message
    */
-  addAssistantMessage(content) {
-    this.messages.push(createAssistantMessage(content));
+  addAssistantMessage(content, isStreaming = false) {
+    this.messages.push(createAssistantMessage(content, isStreaming));
     return this;
   }
+
+  /**
+   * Update the content of a specific message by index
+   */
+  updateMessageContent(messageIndex, content) {
+    if (this.messages[messageIndex]) {
+      this.messages[messageIndex].content = content;
+    }
+    return this;
+  }
+
+  /**
+   * Update streaming status of a specific message by index
+   */
+  updateMessageStreamingStatus(messageIndex, isStreaming) {
+    if (this.messages[messageIndex]) {
+      this.messages[messageIndex].isStreaming = isStreaming;
+    }
+    return this;
+  }
+
 
   /**
    * Add a tool call from the assistant
    */
   addToolCall(toolCallId, toolName, toolArguments) {
-    const toolCallMessage = this.toolHistory.createToolCall(toolCallId, toolName, toolArguments);
-    this.messages.push(toolCallMessage);
+    // Prevent duplicate tool calls
+    if (this.messages.some(m => m.type === 'tool' && m.id === toolCallId)) {
+      return this;
+    }
+    // Create the message in the format the UI expects from the start.
+    this.messages.push({
+      role: 'assistant',
+      id: toolCallId,
+      author: 'agent',
+      type: 'tool',
+      tool_name: toolName,
+      tool_args: toolArguments,
+      result: null, // No result yet
+      isStreaming: true, // It's in progress
+    });
+    return this;
+  }
+
+  /**
+   * Updates a tool call with its result.
+   */
+  updateToolCall(toolCallId, result) {
+    const message = this.messages.find(m => m.type === 'tool' && m.id === toolCallId);
+    if (message) {
+      message.result = result;
+      message.isStreaming = false;
+    }
     return this;
   }
 

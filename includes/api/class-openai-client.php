@@ -3,8 +3,7 @@
  * Wordsurf OpenAI API Client
  *
  * This class is a lightweight, pure HTTP client for the OpenAI API.
- * It is responsible only for making requests and streaming back the raw,
- * uninterpreted response data.
+ * It is responsible only for making requests and returning raw response data.
  *
  * @package Wordsurf
  * @since   0.1.0
@@ -44,12 +43,23 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
      * @return string The full, raw response from the API.
      */
     public function stream_request($body) {
+        return $this->stream_request_with_tool_processing($body, null);
+    }
+
+    /**
+     * Stream a request with integrated tool processing
+     *
+     * @param array $body The request body to send to OpenAI.
+     * @param callable|null $completion_callback Called when stream completes
+     * @return string The full, raw response from the API.
+     */
+    public function stream_request_with_tool_processing($body, $completion_callback = null) {
         // Ensure the stream flag is set, as required by the Responses API.
         $body['stream'] = true;
 
-        error_log('Wordsurf OpenAI Streaming Request: ' . json_encode($body));
-
         $full_response = '';
+        $stream_completed = false;
+        
         $ch = curl_init($this->api_endpoint);
         curl_setopt_array($ch, [
             CURLOPT_HTTPHEADER     => [
@@ -59,11 +69,11 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
             ],
             CURLOPT_POST           => 1,
             CURLOPT_POSTFIELDS     => json_encode($body),
-            CURLOPT_WRITEFUNCTION  => function($ch, $data) use (&$full_response) {
-                // Echo the data directly to the client for real-time streaming.
+            CURLOPT_WRITEFUNCTION  => function($ch, $data) use (&$full_response, &$stream_completed, $completion_callback) {
+                // Stream the raw data directly to the output buffer
                 echo $data;
-
-                // Flush the output buffer to ensure the data is sent immediately.
+                
+                // Flush immediately
                 if (ob_get_level() > 0) {
                     ob_flush();
                 }
@@ -71,6 +81,12 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
                 
                 // Append the data to our buffer to capture the full response.
                 $full_response .= $data;
+                
+                // Check if this chunk contains stream completion
+                if (strpos($data, 'event: response.completed') !== false && !$stream_completed) {
+                    $stream_completed = true;
+                    error_log('Wordsurf DEBUG: Stream completion detected, will process tools after this chunk');
+                }
                 
                 // Return the number of bytes written.
                 return strlen($data);
@@ -81,6 +97,7 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         
         error_log('Wordsurf DEBUG: HTTP Status Code: ' . $http_code);
+        error_log('Wordsurf DEBUG: Full response length: ' . strlen($full_response));
 
         if (curl_errno($ch)) {
             error_log('Wordsurf cURL Error: ' . curl_error($ch));
@@ -88,9 +105,15 @@ class Wordsurf_OpenAI_Client extends Wordsurf_API_Base {
         
         if ($http_code !== 200) {
             error_log('Wordsurf DEBUG: Non-200 response. HTTP Code: ' . $http_code);
+            error_log('Wordsurf DEBUG: Response body: ' . $full_response);
         }
         
         curl_close($ch);
+
+        // Process tools immediately after curl completes but before connection closes
+        if ($completion_callback && is_callable($completion_callback)) {
+            call_user_func($completion_callback, $full_response);
+        }
 
         return $full_response;
     }

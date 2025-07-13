@@ -20,6 +20,13 @@ class Wordsurf_REST_API {
      */
     public function __construct() {
         add_action('rest_api_init', array($this, 'register_routes'));
+        // Register the stream chat endpoint
+        add_action('wp_ajax_wordsurf_stream_chat', [$this, 'handle_stream_chat']);
+        add_action('wp_ajax_nopriv_wordsurf_stream_chat', [$this, 'handle_stream_chat']);
+        
+        // Register the tool action endpoint
+        add_action('wp_ajax_wordsurf_tool_action', [$this, 'handle_tool_action']);
+        add_action('wp_ajax_nopriv_wordsurf_tool_action', [$this, 'handle_tool_action']);
     }
     
     /**
@@ -136,5 +143,41 @@ class Wordsurf_REST_API {
         );
     }
     
+    /**
+     * Handle tool action requests (accept/reject)
+     */
+    public function handle_tool_action() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'wordsurf_nonce')) {
+            wp_die('Invalid nonce');
+        }
+        
+        $action = $_POST['action_type'] ?? '';
+        $tool_call_id = $_POST['tool_call_id'] ?? '';
+        $tool_data = $_POST['tool_data'] ?? [];
+        
+        if (empty($action) || empty($tool_call_id)) {
+            wp_send_json_error('Missing required parameters');
+        }
+        
+        // Process the tool action
+        $result = $this->process_tool_action($action, $tool_call_id, $tool_data);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * Process tool accept/reject actions
+     */
+    private function process_tool_action($action, $tool_call_id, $tool_data) {
+        // This would integrate with the tool manager to actually apply or reject changes
+        // For now, just return success
+        return [
+            'success' => true,
+            'action' => $action,
+            'tool_call_id' => $tool_call_id,
+            'message' => "Tool action '{$action}' processed successfully"
+        ];
+    }
 
 } 

@@ -1,0 +1,31 @@
+{
+  "apiVersion": 3,
+  "name": "wordsurf/diff",
+  "title": "Wordsurf Diff",
+  "category": "common",
+  "icon": "editor-code",
+  "description": "A block containing AI-suggested changes that can be accepted or rejected.",
+  "keywords": ["diff", "ai", "wordsurf", "change", "revision"],
+  "attributes": {
+    "diffId": { "type": "string" },
+    "diffType": { "type": "string", "default": "edit" },
+    "originalContent": { "type": "string" },
+    "replacementContent": { "type": "string" },
+    "status": { "type": "string", "default": "pending" },
+    "toolCallId": { "type": "string" },
+    "editType": { "type": "string", "default": "content" },
+    "searchPattern": { "type": "string" },
+    "caseSensitive": { "type": "boolean", "default": false },
+    "originalBlockContent": { "type": "string" },
+    "originalBlockType": { "type": "string" }
+  },
+  "supports": {
+    "html": false,
+    "align": false,
+    "anchor": true
+  },
+  "editorScript": "wordsurf-diff-block",
+  "editorStyle": "wordsurf-diff-block",
+  "style": "wordsurf-diff-block",
+  "render": "file:./render.php"
+} 

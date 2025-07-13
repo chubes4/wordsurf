@@ -41,6 +41,53 @@ function deactivate_wordsurf() {
 register_deactivation_hook( __FILE__, 'deactivate_wordsurf' );
 
 /**
+ * Enqueue scripts and styles for the editor
+ */
+function wordsurf_enqueue_editor_assets() {
+    // Enqueue the main editor script
+    wp_enqueue_script(
+        'wordsurf-editor',
+        WORDSURF_PLUGIN_URL . 'assets/js/editor.js',
+        array('wp-blocks', 'wp-element', 'wp-editor', 'wp-components', 'wp-data'),
+        filemtime(WORDSURF_PLUGIN_DIR . 'assets/js/editor.js'),
+        true
+    );
+
+    // Enqueue diff block script and styles
+    wp_enqueue_script(
+        'wordsurf-diff-block',
+        WORDSURF_PLUGIN_URL . 'assets/js/diff-block.js',
+        array('wp-blocks', 'wp-element', 'wp-editor', 'wp-components', 'wp-data'),
+        filemtime(WORDSURF_PLUGIN_DIR . 'assets/js/diff-block.js'),
+        true
+    );
+
+    wp_enqueue_style(
+        'wordsurf-diff-block',
+        WORDSURF_PLUGIN_URL . 'assets/css/editor/diff-block.css',
+        array(),
+        filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/editor/diff-block.css')
+    );
+
+    // Localize script with plugin data
+    wp_localize_script('wordsurf-editor', 'wordsurfData', array(
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('wordsurf_nonce'),
+        'pluginUrl' => WORDSURF_PLUGIN_URL,
+    ));
+}
+add_action('enqueue_block_editor_assets', 'wordsurf_enqueue_editor_assets');
+
+/**
+ * Register custom blocks
+ */
+function wordsurf_register_blocks() {
+    // Register the diff block using block.json
+    register_block_type(WORDSURF_PLUGIN_DIR . 'includes/blocks/diff');
+}
+add_action('init', 'wordsurf_register_blocks');
+
+/**
  * The core plugin class.
  */
 final class Wordsurf {

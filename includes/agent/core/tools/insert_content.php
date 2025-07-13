@@ -199,28 +199,31 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
                 ];
         }
         
-        // For insert_content, we need special handling since we're not replacing existing text
-        // We'll use a unique marker that the frontend can handle specially
-        $search_pattern = "WORDSURF_INSERT_MARKER_{$position}";
-        $replacement_text = $content;
+        // Generate a unique diff ID
+        $diff_id = 'diff_' . uniqid();
         
-        // Return standardized diff data for inline highlighting
+        // Create diff block content for insertion
+        $diff_block_content = $this->create_insert_diff_block_content($diff_id, $content, $position, $insertion_point, $content_type);
+        
+        // Return diff data for user approval with diff block content
         return [
             'success' => true,
             'preview' => true,
-            'message' => "Successfully prepared to insert new content {$insertion_point}. The user will see the new content highlighted in the editor and can choose to accept or reject this addition.",
+            'message' => "Successfully prepared to insert new content {$insertion_point}. The user will see a diff block with the proposed insertion that can be accepted or rejected.",
             'post_id' => $post_id,
             'edit_type' => $content_type,
-            'search_pattern' => $search_pattern, // Anchor text to find for highlighting
-            'replacement_text' => $replacement_text, // Anchor + new content
+            'search_pattern' => '', // Not applicable for insertions
+            'replacement_text' => $content,
             'original_content' => $current_content,
             'new_content' => $new_content,
             'tool_type' => 'insert_content',
             'position' => $position,
             'insertion_point' => $insertion_point,
-            'inserted_content' => $content, // Keep this for backward compatibility
+            'inserted_content' => $content,
             'changes_found' => true,
-            'action_required' => 'User must accept or reject the new content insertion in the editor'
+            'action_required' => 'User must accept or reject the diff block in the editor',
+            'diff_block_content' => $diff_block_content,
+            'diff_id' => $diff_id
         ];
     }
     
@@ -265,5 +268,41 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
         }
         
         return $previews;
+    }
+    
+    /**
+     * Create diff block content for insertions
+     *
+     * @param string $diff_id
+     * @param string $content
+     * @param string $position
+     * @param string $insertion_point
+     * @param string $content_type
+     * @return string
+     */
+    private function create_insert_diff_block_content($diff_id, $content, $position, $insertion_point, $content_type) {
+        // Create the diff block with all necessary attributes
+        $block_attributes = [
+            'diffId' => $diff_id,
+            'diffType' => 'insert',
+            'originalContent' => '',
+            'replacementContent' => $content,
+            'status' => 'pending',
+            'toolCallId' => 'tool_call_' . uniqid(),
+            'editType' => $content_type,
+            'searchPattern' => '',
+            'caseSensitive' => false,
+            'isPreview' => true,
+            'position' => $position,
+            'insertionPoint' => $insertion_point,
+        ];
+        
+        // Convert attributes to JSON for the block
+        $attributes_json = json_encode($block_attributes);
+        
+        // Create the diff block content - let WordPress handle the rendering
+        $diff_block = "<!-- wp:wordsurf/diff {$attributes_json} -->\n<!-- /wp:wordsurf/diff -->";
+        
+        return $diff_block;
     }
 } 

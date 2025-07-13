@@ -17,6 +17,24 @@ export function streamChatMessage(messages, postId, onEvent, onComplete, onError
     });
 
     const eventSource = new EventSource(`${window.wordsurfData.ajax_url}?${params.toString()}`);
+    let hasReceivedCompletion = false;
+    let isConnectionClosed = false;
+    let hasToolCalls = false;
+    
+    // Log ALL events received for debugging
+    eventSource.onmessage = function(event) {
+        console.log('🚀 DEFAULT MESSAGE EVENT:', event.type, event.data);
+    };
+    
+    // Override the open event to log connection status
+    eventSource.onopen = function(event) {
+        console.log('🟢 EventSource connection opened');
+    };
+    
+    eventSource.onerror = function(event) {
+        console.log('🔴 EventSource error event:', event, 'readyState:', eventSource.readyState);
+    };
+    
 
     // Generic event handler
     const handleEvent = (event_type, event) => {
@@ -46,31 +64,96 @@ export function streamChatMessage(messages, postId, onEvent, onComplete, onError
         try {
             const parsed = JSON.parse(event.data);
             if (parsed.item && parsed.item.type === 'function_call') {
-                 onEvent({ type: 'tool_start', data: parsed.item });
+                hasToolCalls = true; // Mark that we have tool calls
+                onEvent({ type: 'tool_start', data: parsed.item });
             }
         } catch (e) {
              console.error('Failed to parse tool start:', event.data, e);
         }
     });
 
+    // Tool result event (sent by backend after tool execution)
+    eventSource.addEventListener('tool_result', (event) => {
+        console.log('🔧 TOOL_RESULT EVENT RECEIVED:', event.data);
+        console.log('🔧 Event object:', event);
+        console.log('🔧 EventSource readyState:', eventSource.readyState);
+        
+        try {
+            const parsed = JSON.parse(event.data);
+            console.log('🔧 Parsed tool result:', parsed);
+            console.log('🔧 About to call onEvent with:', { type: 'tool_result', data: parsed });
+            onEvent({ type: 'tool_result', data: parsed });
+            
+            // Close the connection after receiving tool results
+            isConnectionClosed = true;
+            eventSource.close();
+            if (onComplete) onComplete();
+        } catch (e) {
+            console.error('Failed to parse tool result:', event.data, e);
+        }
+    });
+
     // End of stream event
     eventSource.addEventListener('response.completed', (event) => {
-        console.log('StreamApi: Stream completed by API.');
-        eventSource.close();
-        if (onComplete) onComplete();
+        hasReceivedCompletion = true;
+        try {
+            const parsed = JSON.parse(event.data);
+            console.log('StreamApi: Stream completed by API.', parsed);
+            // Pass the entire final response object to the handler.
+            onEvent({ type: 'stream_end', data: parsed.response });
+            
+            // Smart connection handling based on whether tools were involved
+            if (hasToolCalls) {
+                console.log('StreamApi: Stream completed, keeping connection open for tool results');
+                // NO TIMEOUT - let tool_result event handle closing
+                // This allows tools to take as long as they need
+            } else {
+                console.log('StreamApi: Stream completed, no tools detected, closing immediately');
+                isConnectionClosed = true;
+                eventSource.close();
+                if (onComplete) onComplete();
+            }
+            
+        } catch (e) {
+            console.error('Failed to parse response.completed event:', event.data, e);
+            // Try to recover by sending a basic completion event
+            onEvent({ type: 'stream_end', data: { status: 'completed' } });
+            
+            // Close immediately on parse error (recovery mode)
+            if (!isConnectionClosed) {
+                console.log('StreamApi: Parse error recovery - closing connection immediately');
+                isConnectionClosed = true;
+                eventSource.close();
+                if (onComplete) onComplete();
+            }
+        }
     });
     
-    // Final catch-all for the connection closing
-    eventSource.addEventListener('error', (err) => {
-        console.error('EventSource error:', err);
-        // Avoid duplicate calls if already completed.
-        if (eventSource.readyState === EventSource.CLOSED) {
-            if (onComplete) onComplete();
-        } else if (onError) {
-             onError(err);
+    // Add a generic message handler to catch any events we're not specifically listening for
+    eventSource.addEventListener('message', (event) => {
+        // Only log if it's not one of our expected events
+        if (!event.type.startsWith('response.')) {
+            console.log('StreamApi: Received unexpected message event:', event);
         }
-        eventSource.close();
     });
+    
+    // The browser dispatches an error event when the connection is closed by the server.
+    // We can often ignore this as 'response.completed' is our real signal.
+    eventSource.addEventListener('error', (err) => {
+        // Prevent automatic reconnection by closing immediately
+        if (!isConnectionClosed) {
+            isConnectionClosed = true;
+            eventSource.close();
+        }
+        
+        // Only treat as an error if we haven't received completion and the connection is not closed
+        // The error event often fires when the server closes the connection normally
+        if (!hasReceivedCompletion && eventSource.readyState !== EventSource.CLOSED) {
+            console.error('StreamApi: EventSource error:', err);
+            if (onError) onError(err);
+        }
+    });
+    
     
     // Return the EventSource instance so the caller can close it if needed.
     return eventSource;

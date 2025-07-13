@@ -3,34 +3,37 @@
 
 ## Immediate (Next Steps)
 
-1. **🔍 IN PROGRESS: OpenAI Responses API Event Format Investigation**
-   - **Issue**: Getting HTTP 200 responses but empty content from OpenAI Responses API
-   - **Root Cause**: Mismatch between expected SSE event types and what OpenAI actually sends in 2025
-   - **Debug Strategy**: Added comprehensive logging to `Wordsurf_Response_Stream_Parser` to capture actual OpenAI event format
-   - **Critical Note**: Using OpenAI Responses API (`/v1/responses`) with `gpt-4.1` model - DO NOT revert to Chat Completions API
-   - **Next**: Monitor debug logs to identify actual event types, then update parser accordingly
-   - **Debug Command**: `tail -f /path/to/logs/error.log | grep "Wordsurf DEBUG"`
+1. **✅ COMPLETED: Chat UI Display Fix**
+   - **Issue**: Assistant responses were not appearing in the chat window despite successful streaming
+   - **Root Cause**: ChatHistory `addOrUpdateAssistantMessage` method wasn't setting required `type` and `author` fields
+   - **Fix**: Updated ChatHistory to properly format assistant messages with `type: 'text'` and `author: 'agent'`
+   - **Result**: Assistant responses now display correctly in the chat interface
 
-2. **✅ COMPLETED: OpenAI Streaming Format Compatibility**
+2. **✅ COMPLETED: EventSource Error Handling**
+   - **Issue**: "Sorry, there was an error" message appearing even when streams completed successfully
+   - **Root Cause**: EventSource error events firing when server closes connection normally
+   - **Fix**: Added completion tracking and improved error handling logic in StreamApi
+   - **Result**: Clean stream completion without false error messages
+
+3. **✅ COMPLETED: OpenAI Streaming Format Compatibility**
    - ✅ Updated backend `Wordsurf_Response_Stream_Parser` to handle new OpenAI format (`response.output_item.done`)
    - ✅ Maintained backward compatibility with legacy format
    - ✅ Preserved clean frontend architecture - no translation layer needed
    - ✅ Fixed diff display issue - tools now properly trigger frontend diff system
    - **Result**: All tools (edit_post, insert_content, write_to_post) now work with proper diff previews
 
-3. **User Experience Polish**
+4. **User Experience Polish**
    - Replace generic "Sorry, there was an error" with specific, actionable error messages
    - Add progressive loading indicators and estimated time display for tool operations
    - Implement undo/redo functionality for tool operations (safe experimentation)
    - Enhance keyboard shortcuts and mobile responsiveness in chat interface
 
-4. **Remove Debug Performance Overhead**
+5. **Remove Debug Performance Overhead**
    - Remove console.log statements cluttering the developer console (affects fluidity)
    - Clean up error_log statements that add unnecessary network overhead
    - Streamline debugging to not impact user experience
-   - **EXCEPTION**: Keep debugging logs in `Wordsurf_Response_Stream_Parser` until current SSE format issue is resolved
 
-5. **Enhanced Tool Feedback**
+6. **Enhanced Tool Feedback**
    - Add content statistics display (word count changes, character differences)
    - Implement real-time progress indicators for longer operations  
    - Show estimated completion times for tool execution

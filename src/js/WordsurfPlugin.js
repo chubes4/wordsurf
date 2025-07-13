@@ -1,14 +1,18 @@
 import { registerPlugin } from '@wordpress/plugins';
 import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/editor';
 import { __ } from '@wordpress/i18n';
-import { useState, useRef, useCallback } from '@wordpress/element';
-import { useSelect, useDispatch } from '@wordpress/data';
+import { useState, useRef, useCallback, useEffect } from '@wordpress/element';
+import { useSelect } from '@wordpress/data';
 
 // New architecture imports
 import { useChatHandler } from './agent/core/ChatHandler';
 import { ChatHistory } from './context/ChatHistory';
 import { InlineDiffManager } from './editor/InlineDiffManager';
 import { ChatInterface } from './editor/UIComponents';
+import { HandleAcceptAll } from '../../includes/blocks/diff/src/HandleAcceptAll';
+import { FindDiffBlocks } from '../../includes/blocks/diff/src/FindDiffBlocks';
+
+
 
 const PLUGIN_NAME = 'wordsurf';
 const PLUGIN_TITLE = __('Wordsurf', 'wordsurf');
@@ -24,12 +28,18 @@ const PluginIcon = () => (
 const WordsurfSidebar = () => {
     const [diffContext, setDiffContext] = useState({ originalContent: '', diffs: [] });
     
+    // Debug: Log diffContext changes only when diffs are added
+    useEffect(() => {
+        if (diffContext.diffs.length > 0) {
+            console.log('WordsurfPlugin: diffContext has diffs:', diffContext);
+        }
+    }, [diffContext.diffs.length]);
     // Chat history management
     const chatHistory = useRef(new ChatHistory([]));
-    
-    // Get current post data
+    // Get current post data and blocks
     const postData = useSelect(select => {
         const { getCurrentPostId, getEditedPostAttribute } = select('core/editor');
+        const { getBlocks } = select('core/block-editor');
         const postId = getCurrentPostId();
         return {
             postId,
@@ -37,49 +47,88 @@ const WordsurfSidebar = () => {
             content: getEditedPostAttribute('content'),
             status: getEditedPostAttribute('status'),
             type: getEditedPostAttribute('type'),
+            blocks: getBlocks(),
         };
     });
 
+    // Monitor editor blocks and reset chat state when no diff blocks remain
+    useEffect(() => {
+        if (diffContext.diffs.length > 0 && postData.blocks) {
+            if (!FindDiffBlocks.hasDiffBlocks()) {
+                console.log('WordsurfPlugin: No diff blocks remaining in editor - resetting chat state');
+                setDiffContext(prev => ({ ...prev, diffs: [] }));
+            }
+        }
+    }, [postData.blocks, diffContext.diffs.length]);
     // Handle diff received from chat handler
     const handleDiffReceived = useCallback((diffData) => {
+        console.log('WordsurfPlugin: Received diff data:', diffData);
+        console.log('WordsurfPlugin: Has diff_block_content:', !!diffData.diff_block_content);
         setDiffContext(prev => ({
             ...prev,
             diffs: [...prev.diffs, diffData],
         }));
     }, []);
-
     // Chat handler hook must be initialized before callbacks that use it.
     const chatHandler = useChatHandler({
         postId: postData.postId,
         onDiffReceived: handleDiffReceived,
         chatHistory
     });
-
     const handleAcceptDiff = useCallback((diffData) => {
-        // Record user decision in chat history
         chatHandler.recordUserDecision('accepted', diffData);
-        // Remove the diff from the queue
         setDiffContext(prev => ({
             ...prev,
             diffs: prev.diffs.filter(d => d.tool_call_id !== diffData.tool_call_id)
         }));
     }, [chatHandler]);
-
     const handleRejectDiff = useCallback((diffData) => {
-        // Record user decision in chat history
         chatHandler.recordUserDecision('rejected', diffData);
-        // Remove the diff from the queue
         setDiffContext(prev => ({
             ...prev,
             diffs: prev.diffs.filter(d => d.tool_call_id !== diffData.tool_call_id)
         }));
     }, [chatHandler]);
-
-    const handleSendWithContent = () => {
-        setDiffContext(prev => ({ ...prev, originalContent: postData.content, diffs: [] })); // Reset diffs for new turn
+    
+    // Accept/reject all changes handlers - clean bridge using DiffActions
+    const handleAcceptAllChanges = useCallback(async () => {
+        console.log('WordsurfPlugin: Accept all clicked');
+        
+        try {
+            const processedCount = await HandleAcceptAll.acceptAll();
+            console.log('WordsurfPlugin: Accepted', processedCount, 'diff blocks');
+            
+            // Record decisions and clear context
+            diffContext.diffs.forEach(diff => {
+                chatHandler.recordUserDecision('accepted', diff);
+            });
+            setDiffContext(prev => ({ ...prev, diffs: [] }));
+        } catch (error) {
+            console.error('WordsurfPlugin: Error accepting all changes:', error);
+        }
+    }, [diffContext.diffs, chatHandler]);
+    
+    const handleRejectAllChanges = useCallback(async () => {
+        console.log('WordsurfPlugin: Reject all clicked');
+        
+        try {
+            const processedCount = await HandleAcceptAll.rejectAll();
+            console.log('WordsurfPlugin: Rejected', processedCount, 'diff blocks');
+            
+            // Record decisions and clear context
+            diffContext.diffs.forEach(diff => {
+                chatHandler.recordUserDecision('rejected', diff);
+            });
+            setDiffContext(prev => ({ ...prev, diffs: [] }));
+        } catch (error) {
+            console.error('WordsurfPlugin: Error rejecting all changes:', error);
+        }
+    }, [diffContext.diffs, chatHandler]);
+    // Send handler resets diffs for new turn
+    const handleSendWithContent = useCallback(() => {
+        setDiffContext(prev => ({ ...prev, originalContent: postData.content, diffs: [] }));
         chatHandler.handleSend();
-    };
-
+    }, [postData.content, chatHandler, setDiffContext]);
     return (
         <>
             <PluginSidebarMoreMenuItem target={PLUGIN_NAME}>
@@ -97,21 +146,24 @@ const WordsurfSidebar = () => {
                     onInputChange={(e) => chatHandler.setInputValue(e.target.value)}
                     onSend={handleSendWithContent}
                     isStreaming={chatHandler.isStreaming}
+                    hasStreamingAssistant={chatHandler.hasStreamingAssistant}
+                    pendingDiffs={diffContext.diffs}
+                    onAcceptAllChanges={handleAcceptAllChanges}
+                    onRejectAllChanges={handleRejectAllChanges}
                 />
             </PluginSidebar>
-            
             <InlineDiffManager 
                 diffContext={diffContext}
                 onAccept={handleAcceptDiff}
                 onReject={handleRejectDiff}
+                key={`diff-manager-${diffContext.diffs.length}`}
             />
         </>
     );
 };
-
 // Only register if not already registered to prevent conflicts
 if (!wp.plugins.getPlugin(PLUGIN_NAME)) {
-    registerPlugin(PLUGIN_NAME, {
-        render: WordsurfSidebar,
-    });
+registerPlugin(PLUGIN_NAME, {
+    render: WordsurfSidebar,
+}); 
 } 

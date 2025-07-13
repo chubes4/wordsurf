@@ -1,7 +1,100 @@
-/* Wordsurf Inline Diff Highlight Styles */
+/* Wordsurf Inline Diff Highlight Styles - WordPress-style */
 
+/* Main diff container - truly inline */
+.wordsurf-diff-container {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    line-height: inherit;
+}
+
+/* Removed text styling - minimal padding */
+.wordsurf-diff-removed {
+    background-color: #ffeaea;
+    color: #d63638;
+    text-decoration: line-through;
+    padding: 1px 2px;
+    border-radius: 2px;
+    margin: 0;
+    display: inline;
+    border: none;
+}
+
+/* Added text styling - minimal padding */
+.wordsurf-diff-added {
+    background-color: #d4edda;
+    color: #155724;
+    text-decoration: none;
+    padding: 1px 2px;
+    border-radius: 2px;
+    margin: 0;
+    display: inline;
+    border: none;
+}
+
+/* Inline action buttons container - truly inline */
+.wordsurf-diff-controls {
+    margin: 0 0 0 4px;
+    display: inline;
+    vertical-align: baseline;
+}
+
+/* Accept button - small and inline */
+.wordsurf-accept-btn {
+    background: #00a32a;
+    color: white;
+    border: none;
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-size: 10px;
+    cursor: pointer;
+    margin: 0 1px;
+    transition: background-color 0.2s ease;
+    font-weight: bold;
+    line-height: 1;
+    text-decoration: none;
+    display: inline;
+    vertical-align: baseline;
+    font-family: monospace;
+}
+
+.wordsurf-accept-btn:hover {
+    background: #008a20;
+    color: white;
+}
+
+/* Reject button - small and inline */
+.wordsurf-reject-btn {
+    background: #d63638;
+    color: white;
+    border: none;
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-size: 10px;
+    cursor: pointer;
+    margin: 0 1px;
+    transition: background-color 0.2s ease;
+    font-weight: bold;
+    line-height: 1;
+    text-decoration: none;
+    display: inline;
+    vertical-align: baseline;
+    font-family: monospace;
+}
+
+.wordsurf-reject-btn:hover {
+    background: #b32424;
+    color: white;
+}
+
+/* Ensure no extra spacing in paragraph blocks */
+.wp-block-paragraph .wordsurf-diff-container {
+    white-space: normal;
+}
+
+/* Legacy styles - keep for backwards compatibility */
 .wordsurf-diff-ins {
-    background-color: #d4edda; /* Light green for additions */
+    background-color: #d4edda;
     color: #155724;
     text-decoration: none;
     padding: 2px 1px;
@@ -9,7 +102,7 @@
 }
 
 .wordsurf-diff-del {
-    background-color: #f8d7da; /* Light red for deletions */
+    background-color: #f8d7da;
     color: #721c24;
     text-decoration: line-through;
     padding: 2px 1px;
@@ -25,4 +118,38 @@
     color: #333;
     border: 1px solid #ddd;
     margin: 1em 0;
+}
+
+/* Pending changes UI in chat sidebar */
+.wordsurf-pending-changes {
+    margin: 10px 0;
+    padding: 12px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 4px;
+    border-left: 4px solid #f39c12;
+}
+
+.pending-changes-header {
+    margin-bottom: 8px;
+    color: #8d6a3a;
+}
+
+.pending-changes-content p {
+    margin: 8px 0;
+    font-size: 13px;
+    color: #6c5a3a;
+}
+
+.pending-changes-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.pending-changes-actions .button {
+    font-size: 12px;
+    height: auto;
+    line-height: 1.4;
+    padding: 4px 8px;
 } 

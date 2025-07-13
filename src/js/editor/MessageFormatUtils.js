@@ -50,114 +50,58 @@ export function toOpenAIFormat(messages) {
 }
 
 /**
- * Convert OpenAI messages to UI display format
- * Filters out tool calls/results and converts to UI format
- */
-export function toUIFormat(messages) {
-    const uiMessages = [];
-    for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i];
-
-        if (msg.role === 'user' || (msg.role === 'assistant' && msg.content)) {
-            uiMessages.push({
-                author: msg.role === 'user' ? 'user' : 'agent',
-                content: msg.content,
-                type: 'text',
-                isStreaming: msg.isStreaming || false,
-            });
-        } else if (msg.role === 'assistant' && msg.tool_calls) {
-            const toolCall = msg.tool_calls[0];
-            const resultMsg = messages[i + 1];
-
-            let result = null;
-            if (resultMsg && resultMsg.role === 'tool' && resultMsg.tool_call_id === toolCall.id) {
-                try {
-                    result = JSON.parse(resultMsg.content);
-                } catch (e) {
-                    console.error('Failed to parse tool result content:', resultMsg.content);
-                }
-                i++; // Skip the next message since we've processed it
-            }
-
-            uiMessages.push({
-                author: 'agent',
-                type: 'tool',
-                tool_name: toolCall.function.name,
-                tool_args: toolCall.function.arguments,
-                result: result,
-                id: toolCall.id,
-            });
-        }
-    }
-    return uiMessages;
-}
-
-/**
- * Check if a message is a tool call
- */
-export function isToolCall(message) {
-    return message.tool_calls && Array.isArray(message.tool_calls);
-}
-
-/**
- * Check if a message is a tool result
- */
-export function isToolResult(message) {
-    return message.role === 'tool' && message.tool_call_id;
-}
-
-/**
- * Check if a message should be displayed in UI
- */
-export function shouldDisplayInUI(message) {
-    return !isToolCall(message) && !isToolResult(message);
-}
-
-/**
  * Create an OpenAI format user message
  */
 export function createUserMessage(content) {
     return {
         role: 'user',
-        content: content
+        content: content,
+        type: 'text',
+        author: 'user',
     };
 }
 
 /**
  * Create an OpenAI format assistant message
  */
-export function createAssistantMessage(content) {
+export function createAssistantMessage(content, isStreaming = false) {
     return {
         role: 'assistant',
-        content: content
+        content: content,
+        type: 'text',
+        author: 'agent',
+        isStreaming: isStreaming,
     };
-}
+} 
 
 /**
- * Create an OpenAI format tool call message
+ * Create a tool call message
  */
 export function createToolCallMessage(toolCallId, toolName, toolArguments) {
     return {
         role: 'assistant',
-        content: null,
-        tool_calls: [{
-            id: toolCallId,
-            type: 'function',
-            function: {
-                name: toolName,
-                arguments: toolArguments
-            }
-        }]
+        id: toolCallId,
+        author: 'agent',
+        type: 'tool',
+        tool_name: toolName,
+        tool_args: toolArguments,
+        result: null,
+        isStreaming: true,
     };
 }
 
 /**
- * Create an OpenAI format tool result message
+ * Create a tool result message
  */
 export function createToolResultMessage(toolCallId, toolResult) {
     return {
-        role: 'tool',
-        tool_call_id: toolCallId,
-        content: JSON.stringify(toolResult)
+        role: 'assistant',
+        id: toolCallId,
+        author: 'agent',
+        type: 'tool',
+        tool_name: toolResult.tool_name || '',
+        tool_args: toolResult.tool_args || {},
+        result: toolResult,
+        isStreaming: false,
     };
 } 

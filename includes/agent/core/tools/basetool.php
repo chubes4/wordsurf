@@ -51,7 +51,6 @@ abstract class Wordsurf_BaseTool {
         // Process parameters and determine if we have optional parameters
         $properties = [];
         $required = [];
-        $has_optional_params = false;
         
         foreach ($parameters_definition as $param_name => $param_config) {
             // Copy parameter config for properties
@@ -60,30 +59,26 @@ abstract class Wordsurf_BaseTool {
             // Check if this parameter is required
             if (isset($param_config['required']) && $param_config['required']) {
                 $required[] = $param_name;
-            } else {
-                $has_optional_params = true;
             }
             
             // Remove the 'required' field from properties (OpenAI doesn't want it there)
             unset($properties[$param_name]['required']);
         }
         
-        // Automatically determine strict mode:
-        // - Use strict mode only if ALL parameters are required
-        // - Use non-strict mode if ANY parameters are optional
-        $strict_mode = !$has_optional_params;
+        $parameters = [
+            'type' => 'object',
+            'properties' => $properties,
+        ];
+
+        if (!empty($required)) {
+            $parameters['required'] = $required;
+        }
         
         return [
             'type' => 'function',
             'name' => $this->get_name(),
             'description' => $this->get_description(),
-            'strict' => $strict_mode,
-            'parameters' => [
-                'type' => 'object',
-                'properties' => $properties,
-                'required' => $required,
-                'additionalProperties' => false
-            ]
+            'parameters' => $parameters
         ];
     }
 

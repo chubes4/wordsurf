@@ -147,11 +147,27 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
             ];
         }
         
-        // Return diff data for user approval - this is how the tool works
+        // Generate a unique diff ID
+        $diff_id = 'diff_' . uniqid();
+        
+        // Find target blocks and create wrapped versions
+        $target_blocks_info = $this->find_and_wrap_target_blocks($current_content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive);
+        
+        if (empty($target_blocks_info)) {
+            return [
+                'success' => false,
+                'error' => "No matches found for pattern: {$search_pattern}",
+                'suggestion' => 'Try using a shorter, more specific phrase instead of a long sentence.',
+                'original_content' => $current_content,
+                'search_pattern' => $search_pattern,
+            ];
+        }
+        
+        // Return diff data for user approval with target block information
         return [
             'success' => true,
             'preview' => true,
-            'message' => "Successfully prepared changes for post {$post_id}. The user will see '{$replacement_text}' highlighted in green in the content and can choose to accept or reject this change.",
+            'message' => "Successfully prepared changes for post {$post_id}. Found " . count($target_blocks_info) . " blocks to modify.",
             'post_id' => $post_id,
             'edit_type' => $edit_type,
             'search_pattern' => $search_pattern,
@@ -159,7 +175,124 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
             'original_content' => $current_content,
             'new_content' => $new_content,
             'changes_found' => true,
-            'action_required' => 'User must accept or reject the highlighted changes in the editor'
+            'action_required' => 'User must accept or reject the diff blocks in the editor',
+            'target_blocks' => $target_blocks_info,
+            'diff_id' => $diff_id
         ];
+    }
+    
+    
+    /**
+     * Find target blocks containing search pattern and create diff wrapper information
+     *
+     * @param string $content Full post content
+     * @param string $search_pattern Text to search for
+     * @param string $diff_id Unique diff identifier
+     * @param string $replacement_text Text to replace with
+     * @param string $edit_type Type of edit (content, title, excerpt)
+     * @param bool $case_sensitive Whether search is case sensitive
+     * @return array Array of target block information for frontend processing
+     */
+    private function find_and_wrap_target_blocks($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive) {
+        // Parse content into blocks
+        $blocks = parse_blocks($content);
+        $target_blocks_info = [];
+        
+        foreach ($blocks as $block_index => $block) {
+            // Check if this block contains the search pattern
+            if ($this->block_contains_pattern($block, $search_pattern, $case_sensitive)) {
+                // Create diff wrapper block for this target
+                $wrapped_diff_block = $this->create_diff_wrapper_block($block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive);
+                
+                $target_blocks_info[] = [
+                    'block_index' => $block_index,
+                    'original_block' => serialize_block($block),
+                    'diff_wrapper_block' => $wrapped_diff_block,
+                    'block_content_preview' => substr(strip_tags(render_block($block)), 0, 100) . '...',
+                    'search_pattern' => $search_pattern,
+                    'replacement_text' => $replacement_text,
+                    'contains_match' => true
+                ];
+            }
+        }
+        
+        return $target_blocks_info;
+    }
+    
+    /**
+     * Legacy method - kept for backward compatibility but now unused
+     * @deprecated Use find_and_wrap_target_blocks instead
+     */
+    private function wrap_target_blocks_with_diff($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive) {
+        $target_blocks_info = $this->find_and_wrap_target_blocks($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive);
+        
+        if (empty($target_blocks_info)) {
+            return '';
+        }
+        
+        // Build complete content with diff blocks for backward compatibility
+        $blocks = parse_blocks($content);
+        $modified_content = '';
+        
+        foreach ($blocks as $block_index => $block) {
+            $found_target = false;
+            foreach ($target_blocks_info as $target_info) {
+                if ($target_info['block_index'] === $block_index) {
+                    $modified_content .= $target_info['diff_wrapper_block'] . "\n\n";
+                    $found_target = true;
+                    break;
+                }
+            }
+            
+            if (!$found_target) {
+                $modified_content .= serialize_block($block) . "\n\n";
+            }
+        }
+        
+        return trim($modified_content);
+    }
+    
+    /**
+     * Check if a block contains the search pattern
+     */
+    private function block_contains_pattern($block, $search_pattern, $case_sensitive) {
+        // Get the block's rendered content
+        $block_content = render_block($block);
+        
+        if ($case_sensitive) {
+            return strpos($block_content, $search_pattern) !== false;
+        } else {
+            return stripos($block_content, $search_pattern) !== false;
+        }
+    }
+    
+    /**
+     * Create a diff wrapper block around a target block
+     */
+    private function create_diff_wrapper_block($target_block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive) {
+        // Create diff block attributes
+        $diff_attributes = [
+            'diffId' => $diff_id,
+            'diffType' => 'edit',
+            'originalContent' => $search_pattern,
+            'replacementContent' => $replacement_text,
+            'status' => 'pending',
+            'toolCallId' => 'tool_call_' . uniqid(),
+            'editType' => $edit_type,
+            'searchPattern' => $search_pattern,
+            'caseSensitive' => $case_sensitive,
+            'isPreview' => true,
+            'originalBlockContent' => serialize_block($target_block),
+            'originalBlockType' => $target_block['blockName'] ?: 'core/paragraph'
+        ];
+        
+        // Convert attributes to JSON for the block
+        $attributes_json = json_encode($diff_attributes);
+        
+        // Get the serialized target block content
+        $target_block_content = serialize_block($target_block);
+        
+        // Return the complete diff block with wrapped content
+        return "<!-- wp:wordsurf/diff {$attributes_json} -->\n{$target_block_content}\n<!-- /wp:wordsurf/diff -->";
     }
 } 

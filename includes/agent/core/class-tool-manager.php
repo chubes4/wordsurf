@@ -134,35 +134,52 @@ class Wordsurf_Tool_Manager {
      */
     public function process_and_execute_tool_calls($full_response) {
         $pending_tool_calls = [];
-        $lines = explode("\n", $full_response);
-        
-        foreach ($lines as $line) {
-            // The final event block starts with 'event: response.completed'.
-            // The actual data is on the following 'data: ' line.
-            if (strpos($line, 'data: ') === 0) {
-                $json_data = substr($line, 6);
-                $decoded = json_decode($json_data, true);
+        // SSE events are separated by double newlines.
+        $event_blocks = explode("\n\n", trim($full_response));
+    
+        foreach ($event_blocks as $block) {
+            $lines = explode("\n", $block);
+            $event_type = null;
+            $data_json = '';
+    
+            // First, parse the event type and data from the current block.
+            foreach ($lines as $line) {
+                if (strpos($line, 'event: ') === 0) {
+                    $event_type = substr($line, 7);
+                } elseif (strpos($line, 'data: ') === 0) {
+                    // This handles cases where the data payload itself might be split into multiple "data: " lines.
+                    $data_json .= substr($line, 6);
+                }
+            }
+            
+            // We only care about the 'response.completed' event for finding the final, authoritative list of tool calls.
+            if ($event_type === 'response.completed' && !empty($data_json)) {
+                $decoded = json_decode($data_json, true);
                 
-                // Check for the final 'response' block from a 'response.completed' event.
                 if (isset($decoded['response']['output'])) {
                     $output_items = $decoded['response']['output'];
                     foreach ($output_items as $item) {
                         if (isset($item['type']) && $item['type'] === 'function_call' && isset($item['status']) && $item['status'] === 'completed') {
                             $tool_name = $item['name'];
-                            $arguments = json_decode($item['arguments'], true);
-
+                            // Arguments might not be present if the call fails, so provide a default.
+                            $arguments = isset($item['arguments']) ? json_decode($item['arguments'], true) : [];
+    
+                            // Ensure arguments are always an array, even if json_decode fails on an empty string.
+                            if ($arguments === null) {
+                                $arguments = [];
+                            }
+    
                             error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' with ID '{$item['call_id']}'.");
                             $result = $this->execute_tool($tool_name, $arguments);
                             error_log("Wordsurf DEBUG (ToolManager): Tool '{$tool_name}' executed. Result: " . json_encode($result));
-
-                            // Store the tool call object and its result for the follow-up.
+    
                             $pending_tool_calls[] = [
                                 'tool_call_object' => $item,
                                 'result' => $result,
                             ];
                         }
                     }
-                    // Once we've processed the 'response.completed' data, we can stop.
+                    // We found and processed the 'response.completed' event, so we can stop searching.
                     break;
                 }
             }
