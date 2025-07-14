@@ -81,6 +81,72 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         });
     }, [chatHistory, updateUIState]);
 
+    // Reset chat session state to allow for continuation
+    const resetForContinuation = useCallback(() => {
+        console.log('ChatHandler: Resetting for continuation');
+        session.hasSentMessage = false;
+        session.isStreaming = false;
+        session.isWaiting = false;
+        updateUIState();
+    }, [session, updateUIState]);
+
+    // Continue chat with tool result
+    const continueWithToolResult = useCallback((toolResult) => {
+        console.log('ChatHandler: Continuing with tool result:', toolResult);
+        
+        if (session.isStreaming || session.hasSentMessage || session.currentEventSource) {
+            console.log('ChatHandler: Cannot continue - already streaming or has sent message');
+            return;
+        }
+
+        // Prepare data for tool result continuation
+        const formData = new FormData();
+        formData.append('action', 'wordsurf_continue_with_tool_result');
+        formData.append('nonce', window.wordsurfData?.nonce || '');
+        formData.append('tool_call_id', toolResult.toolCallId);
+        formData.append('user_action', toolResult.action);
+        formData.append('post_id', toolResult.postId);
+        formData.append('messages', JSON.stringify(chatHistory.current.getOpenAIMessages()));
+
+        // Create EventSource for streaming response
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+            params.append(key, value);
+        }
+
+        const eventSource = new EventSource(`${window.wordsurfData?.ajax_url}?${params.toString()}`);
+        
+        session.isStreaming = true;
+        session.hasSentMessage = true;
+        session.isWaiting = true;
+        session.currentEventSource = eventSource;
+        updateUIState();
+
+        eventSource.onmessage = (event) => {
+            try {
+                const eventData = JSON.parse(event.data);
+                session.handleEvent(eventData);
+            } catch (error) {
+                console.error('Error parsing SSE data:', error);
+            }
+        };
+
+        eventSource.onerror = (error) => {
+            console.error('EventSource error:', error);
+            eventSource.close();
+            session.isStreaming = false;
+            session.isWaiting = false;
+            session.hasSentMessage = false;
+            session.currentEventSource = null;
+            updateUIState();
+        };
+
+        eventSource.onopen = () => {
+            console.log('Tool result continuation stream opened');
+        };
+
+    }, [session, chatHistory, updateUIState]);
+
     return {
         isStreaming: uiState.isStreaming,
         isWaiting: uiState.isWaiting,
@@ -90,6 +156,8 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         handleSend,
         updateUIMessages: updateUIState,
         recordUserDecision,
+        resetForContinuation,
+        continueWithToolResult,
         hasStreamingAssistant: uiState.hasStreamingAssistant,
     };
 }; 

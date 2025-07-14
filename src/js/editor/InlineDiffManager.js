@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSelect, useDispatch } from '@wordpress/data';
-import { parse, createBlock } from '@wordpress/blocks';
 import { PinnedItems } from '@wordpress/interface';
 import { Button, Fill } from '@wordpress/components';
-import { FindDiffBlocks } from '../../../includes/blocks/diff/src/FindDiffBlocks';
 
 /**
  * InlineDiffManager Component V4: Modern Block Editor Only
@@ -53,24 +51,63 @@ export const InlineDiffManager = ({ diffContext, onAccept, onReject }) => {
 
                 // Check if we have target blocks info from the backend (new granular approach)
                 if (currentDiff.target_blocks && currentDiff.target_blocks.length > 0) {
+                    // Check if this is a full replacement (write_to_post)
+                    if (currentDiff.target_blocks[0].is_full_replacement) {
+                        console.log('InlineDiffManager: Processing full post replacement');
+                        const diffBlocks = wp.blocks.parse(currentDiff.target_blocks[0].diff_block_content);
+                        if (diffBlocks.length > 0) {
+                            resetBlocks(diffBlocks);
+                            console.log('InlineDiffManager: Successfully applied full replacement');
+                        } else {
+                            setIsPreviewing(false);
+                            processedDiffsRef.current.delete(diffId);
+                        }
+                        return;
+                    }
                     console.log('InlineDiffManager: Using granular target blocks approach');
+                    
+                    // Filter out empty blocks to match backend filtering
+                    const nonEmptyBlocks = blocks.filter(block => block.name !== null);
+                    
+                    console.log('InlineDiffManager: Frontend blocks - total:', blocks.length, ', non-empty:', nonEmptyBlocks.length);
+                    console.log('InlineDiffManager: Frontend non-empty blocks array:', nonEmptyBlocks.map((block, idx) => ({ 
+                        index: idx, 
+                        name: block.name, 
+                        clientId: block.clientId 
+                    })));
+                    console.log('InlineDiffManager: Backend target blocks:', currentDiff.target_blocks.map(t => ({ 
+                        block_index: t.block_index, 
+                        preview: t.block_content_preview 
+                    })));
                     
                     try {
                         // Process each target block individually
                         currentDiff.target_blocks.forEach((targetInfo, index) => {
                             const { block_index, diff_wrapper_block } = targetInfo;
                             
+                            console.log(`InlineDiffManager: Processing target block ${block_index}, total non-empty blocks: ${nonEmptyBlocks.length}`);
+                            
                             // Parse the diff wrapper block
                             const parsedDiffBlock = wp.blocks.parse(diff_wrapper_block)[0];
                             
-                            if (parsedDiffBlock && blocks[block_index]) {
-                                const targetBlock = blocks[block_index];
-                                console.log(`InlineDiffManager: Replacing block ${block_index} with diff wrapper`);
-                                
-                                replaceBlock(targetBlock.clientId, parsedDiffBlock);
-                            } else {
-                                console.error(`InlineDiffManager: Could not process target block ${block_index}`);
+                            if (!parsedDiffBlock) {
+                                console.error(`InlineDiffManager: Failed to parse diff wrapper block for index ${block_index}`);
+                                return;
                             }
+                            
+                            if (block_index >= nonEmptyBlocks.length || block_index < 0) {
+                                console.warn(`InlineDiffManager: Skipping block index ${block_index} - out of bounds (total non-empty blocks: ${nonEmptyBlocks.length})`);
+                                return;
+                            }
+                            
+                            const targetBlock = nonEmptyBlocks[block_index];
+                            if (!targetBlock) {
+                                console.error(`InlineDiffManager: Target block at index ${block_index} is undefined`);
+                                return;
+                            }
+                            
+                            console.log(`InlineDiffManager: Replacing block ${block_index} (clientId: ${targetBlock.clientId}) with diff wrapper`);
+                            replaceBlock(targetBlock.clientId, parsedDiffBlock);
                         });
                         
                         console.log('InlineDiffManager: Successfully processed', currentDiff.target_blocks.length, 'target blocks granularly');
@@ -79,20 +116,8 @@ export const InlineDiffManager = ({ diffContext, onAccept, onReject }) => {
                         setIsPreviewing(false);
                         processedDiffsRef.current.delete(diffId);
                     }
-                } else if (currentDiff.diff_block_content) {
-                    // Fallback to legacy approach for backward compatibility
-                    console.log('InlineDiffManager: Using legacy diff_block_content approach');
-                    const diffBlocks = wp.blocks.parse(currentDiff.diff_block_content);
-                    
-                    if (diffBlocks.length > 0) {
-                        resetBlocks(diffBlocks);
-                        console.log('InlineDiffManager: Successfully used legacy approach');
-                    } else {
-                        setIsPreviewing(false);
-                        processedDiffsRef.current.delete(diffId);
-                    }
                 } else {
-                    console.error('InlineDiffManager: No target_blocks or diff_block_content provided');
+                    console.error('InlineDiffManager: No target_blocks provided');
                     setIsPreviewing(false);
                     processedDiffsRef.current.delete(diffId);
                 }
@@ -106,30 +131,12 @@ export const InlineDiffManager = ({ diffContext, onAccept, onReject }) => {
     }, [diffs.length, isPreviewing]); // Simplified dependencies to prevent infinite loops
 
 
-    // Handle diff block accept/reject (called from the diff block itself)
+    // These handlers are no longer needed - diff blocks handle their own accept/reject
+    // The InlineDiffManager only needs to handle the initial diff preview setup
     const handleDiffBlockAccept = (diffId) => {
-        console.log('InlineDiffManager: Diff block accept clicked for', diffId);
+        console.log('InlineDiffManager: Diff block accepted', diffId);
         
-        // Find and remove the diff block from the editor
-        const { removeBlock, replaceBlock } = useDispatch('core/block-editor');
-        
-        const targetDiffBlock = FindDiffBlocks.findDiffBlocksByDiffId(diffId)[0];
-        const diffBlockIndex = targetDiffBlock ? blocks.findIndex(block => block.clientId === targetDiffBlock.clientId) : -1;
-        
-        if (diffBlockIndex !== -1 && targetDiffBlock) {
-            const diffBlock = targetDiffBlock;
-            
-            // Replace the diff block with the replacement content
-            const newBlock = createBlock('core/paragraph', {
-                content: diffBlock.attributes.replacementContent,
-            });
-            
-            replaceBlock(diffBlock.clientId, newBlock);
-            
-            console.log('InlineDiffManager: Replaced diff block with accepted content');
-        }
-        
-        // Clean up and call parent accept handler
+        // Clean up and notify parent
         const currentDiff = diffs[0];
         unlockPostSaving('wordsurf-diff-preview');
         setOriginalBlocks(null);
@@ -139,32 +146,9 @@ export const InlineDiffManager = ({ diffContext, onAccept, onReject }) => {
     };
 
     const handleDiffBlockReject = (diffId) => {
-        console.log('InlineDiffManager: Diff block reject clicked for', diffId);
-                    
-        // Find and remove the diff block from the editor
-        const { removeBlock, replaceBlock } = useDispatch('core/block-editor');
+        console.log('InlineDiffManager: Diff block rejected', diffId);
         
-        const targetDiffBlock = FindDiffBlocks.findDiffBlocksByDiffId(diffId)[0];
-        const diffBlockIndex = targetDiffBlock ? blocks.findIndex(block => block.clientId === targetDiffBlock.clientId) : -1;
-        
-        if (diffBlockIndex !== -1 && targetDiffBlock) {
-            const diffBlock = targetDiffBlock;
-            
-            // Replace the diff block with the original content (if any)
-            if (diffBlock.attributes.originalContent) {
-                const newBlock = createBlock('core/paragraph', {
-                    content: diffBlock.attributes.originalContent,
-                });
-                replaceBlock(diffBlock.clientId, newBlock);
-            } else {
-                // For insertions, just remove the block
-                removeBlock(diffBlock.clientId);
-            }
-            
-            console.log('InlineDiffManager: Removed/replaced diff block with rejected content');
-                }
-        
-        // Clean up and call parent reject handler
+        // Clean up and notify parent
         const currentDiff = diffs[0];
         unlockPostSaving('wordsurf-diff-preview');
         setOriginalBlocks(null);

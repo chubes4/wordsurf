@@ -139,4 +139,23 @@
 .wordsurf-diff-block.wordsurf-diff-rejected .wordsurf-diff-status {
     background: #ffcdd2;
     color: #c62828;
+}
+
+/* Inline diff tags styling */
+.wordsurf-diff-content ins.wordsurf-diff-added {
+    background: #c8e6c9;
+    color: #2e7d32;
+    text-decoration: none;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.wordsurf-diff-content del.wordsurf-diff-removed {
+    background: #ffcdd2;
+    color: #c62828;
+    text-decoration: line-through;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: 500;
 } 

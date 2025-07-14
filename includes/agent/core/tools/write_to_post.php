@@ -136,17 +136,34 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
         $original_stats = $this->calculate_content_stats($current_content);
         $new_stats = $this->calculate_content_stats($new_content);
         
-        // Return standardized diff data for inline highlighting (matches edit_post format)
+        // Generate a unique diff ID
+        $diff_id = 'diff_' . uniqid();
+        
+        // For write_to_post, we need to wrap ALL existing blocks in a single diff block
+        // Parse the current content to get all existing blocks
+        $current_blocks = parse_blocks($current_content);
+        
+        // Create target blocks info - replace all blocks with a single diff block
+        $target_blocks_info = [];
+        
+        // We'll replace everything starting at block index 0
+        $target_blocks_info[] = [
+            'block_index' => 0,
+            'diff_block_content' => $this->create_full_replacement_diff_block($current_content, $new_content, $diff_id),
+            'is_full_replacement' => true,
+            'replace_count' => count($current_blocks) // How many blocks to replace
+        ];
         return [
             'success' => true,
             'preview' => true,
-            'message' => "Successfully prepared to replace entire content for post {$post_id}. The user will see the new content highlighted in the editor and can choose to accept or reject this replacement.",
+            'message' => "Successfully prepared to replace entire content for post {$post_id}. The entire post will be wrapped in a diff block for review.",
             'post_id' => $post_id,
             'edit_type' => 'content',
             'search_pattern' => $current_content, // The entire current content
             'replacement_text' => $new_content, // The entire new content
             'original_content' => $current_content,
             'new_content' => $new_content,
+            'target_blocks' => $target_blocks_info, // Use target_blocks approach
             'tool_type' => 'write_to_post',
             'changes' => $changes,
             'original_title' => $current_title,
@@ -163,7 +180,8 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
                 ]
             ],
             'changes_found' => true,
-            'action_required' => 'User must accept or reject the complete content replacement in the editor'
+            'action_required' => 'User must accept or reject the complete content replacement in the editor',
+            'diff_id' => $diff_id
         ];
     }
     
@@ -233,5 +251,41 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
             'characters' => $characters,
             'paragraphs' => max($paragraphs, 0)
         ];
+    }
+    
+    /**
+     * Create a diff block for full post replacement
+     * 
+     * @param string $current_content The current post content
+     * @param string $new_content The new post content
+     * @param string $diff_id The unique diff ID
+     * @return string The serialized diff block
+     */
+    private function create_full_replacement_diff_block($current_content, $new_content, $diff_id) {
+        // Create the diff block attributes
+        $diff_attributes = [
+            'diffId' => $diff_id,
+            'diffType' => 'write', // Special type for full post replacement
+            'originalContent' => $current_content, // The current post content
+            'replacementContent' => $new_content,
+            'status' => 'pending',
+            'toolCallId' => 'tool_call_' . uniqid(),
+            'editType' => 'full_post', // Indicates this is a full post replacement
+            'searchPattern' => '', // Not used for full replacement
+            'caseSensitive' => false,
+            'isPreview' => true,
+            'originalBlockContent' => $current_content, // Store original content for revert
+            'originalBlockType' => 'full_post'
+        ];
+        
+        // Convert attributes to JSON for the block
+        $attributes_json = json_encode($diff_attributes);
+        
+        // Create the diff block that will wrap the entire post content
+        $diff_block = "<!-- wp:wordsurf/diff {$attributes_json} -->\n";
+        $diff_block .= $new_content; // Include the new content inside the diff block
+        $diff_block .= "\n<!-- /wp:wordsurf/diff -->";
+        
+        return $diff_block;
     }
 } 

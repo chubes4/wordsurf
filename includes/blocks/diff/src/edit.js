@@ -1,7 +1,8 @@
 import { __ } from '@wordpress/i18n';
 import { 
     useBlockProps, 
-    InspectorControls 
+    InspectorControls,
+    InnerBlocks
 } from '@wordpress/block-editor';
 import { 
     PanelBody, 
@@ -10,7 +11,7 @@ import {
     SelectControl,
     ToggleControl
 } from '@wordpress/components';
-import { useState } from '@wordpress/element';
+import { useState, useEffect } from '@wordpress/element';
 import { useDispatch, useSelect } from '@wordpress/data';
 import { DiffRenderer } from './DiffRenderer';
 import { DiffActions } from './DiffActions';
@@ -31,10 +32,35 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     } = attributes;
 
     const [isProcessing, setIsProcessing] = useState(false);
+    const [innerBlocksInitialized, setInnerBlocksInitialized] = useState(false);
 
-    // Use WordPress hooks for data dispatch and select
-    const { replaceBlock } = useDispatch('core/block-editor');
+    // Use WordPress hooks for data select
     const currentPostId = useSelect(select => select('core/editor').getCurrentPostId());
+    
+    const { replaceInnerBlocks } = useDispatch('core/block-editor');
+    const innerBlocks = useSelect(select => select('core/block-editor').getBlocks(clientId));
+
+    // Initialize inner blocks from originalBlockContent when block is first created
+    useEffect(() => {
+        if (!innerBlocksInitialized && originalBlockContent) {
+            try {
+                // Parse the original block content into actual blocks
+                const parsedBlocks = wp.blocks.parse(originalBlockContent);
+                
+                if (parsedBlocks.length > 0) {
+                    // Apply diff tags directly to the block content if status is pending
+                    const blocksWithDiffTags = status === 'pending' 
+                        ? DiffRenderer.applyDiffTagsToBlocks(parsedBlocks, attributes)
+                        : parsedBlocks;
+                    
+                    replaceInnerBlocks(clientId, blocksWithDiffTags, false);
+                    setInnerBlocksInitialized(true);
+                }
+            } catch (error) {
+                console.error('Error parsing original block content:', error);
+            }
+        }
+    }, [originalBlockContent, innerBlocks.length, innerBlocksInitialized, clientId, replaceInnerBlocks, status, attributes]);
 
     const blockProps = useBlockProps({
         className: `wordsurf-diff-block wordsurf-diff-${diffType} wordsurf-diff-${status}`,
@@ -44,7 +70,6 @@ export default function Edit({ attributes, setAttributes, clientId }) {
     const { handleAccept, handleReject } = DiffActions.createActionHandlers(
         attributes,
         clientId,
-        replaceBlock,
         currentPostId,
         setIsProcessing,
         setAttributes
@@ -121,13 +146,22 @@ export default function Edit({ attributes, setAttributes, clientId }) {
             </InspectorControls>
 
             <div {...blockProps}>
-                {/* Revolutionary approach: Render wrapped content with diff UI overlay */}
-                <div 
-                    className="wordsurf-diff-content" 
-                    dangerouslySetInnerHTML={{ __html: DiffRenderer.createWrappedContent(attributes) }}
-                />
+                <div className="wordsurf-diff-header">
+                    <span className="wordsurf-diff-type-label">
+                        {diffType === 'write' ? 'Full Post Replacement' : 
+                         diffType === 'edit' ? 'Text Edit' : 
+                         diffType === 'insert' ? 'Text Insertion' : 'Text Change'}
+                    </span>
+                    {renderActionButtons()}
+                </div>
                 
-                {renderActionButtons()}
+                <div className="wordsurf-diff-content">
+                    {/* Use InnerBlocks for editable content with direct ins/del tags */}
+                    <InnerBlocks 
+                        templateLock={status === 'pending' ? 'all' : false}
+                        allowedBlocks={true}
+                    />
+                </div>
             </div>
         </>
     );

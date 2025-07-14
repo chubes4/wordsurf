@@ -40,6 +40,10 @@ class Wordsurf_Chat_Handler {
         // Add endpoint for user feedback on AI suggestions
         add_action('wp_ajax_wordsurf_user_feedback', array($this, 'handle_user_feedback'));
         add_action('wp_ajax_nopriv_wordsurf_user_feedback', array($this, 'handle_user_feedback'));
+        
+        // Add endpoint for tool result continuation
+        add_action('wp_ajax_wordsurf_continue_with_tool_result', array($this, 'handle_tool_result_continuation'));
+        add_action('wp_ajax_nopriv_wordsurf_continue_with_tool_result', array($this, 'handle_tool_result_continuation'));
     }
 
     /**
@@ -112,6 +116,69 @@ class Wordsurf_Chat_Handler {
         // Verify nonce for security
         if (!wp_verify_nonce($_POST['nonce'] ?? '', 'wordsurf_nonce')) {
             http_response_code(403);
+            echo json_encode(['error' => 'Invalid nonce']);
+            exit;
+        }
+
+        // Check permissions
+        if (!current_user_can('edit_posts')) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Forbidden']);
+            exit;
+        }
+
+        $user_action = $_POST['user_action'] ?? '';
+        $tool_call_id = $_POST['tool_call_id'] ?? '';
+        $diff_id = $_POST['diff_id'] ?? '';
+        $post_id = intval($_POST['post_id'] ?? 0);
+
+        // Log the feedback for context management
+        error_log("Wordsurf DEBUG: Diff feedback received - Action: {$user_action}, Tool Call ID: {$tool_call_id}, Diff ID: {$diff_id}, Post: {$post_id}");
+
+        // Store this feedback in context manager for AI awareness
+        // The frontend has already updated the editor state
+        // Backend only needs to track the decision for context/history
+        
+        // TODO: Implement context storage for tracking user preferences and decisions
+        // This could include:
+        // - Storing in post meta for persistence
+        // - Tracking accept/reject patterns for learning
+        // - Maintaining a history of changes
+
+        // Store the tool result for potential model continuation
+        $tool_result_data = [
+            'tool_call_id' => $tool_call_id,
+            'result' => [
+                'success' => true,
+                'action' => $user_action,
+                'diff_id' => $diff_id,
+                'message' => $user_action === 'accepted' ? 
+                    'User accepted the changes' : 
+                    'User rejected the changes'
+            ]
+        ];
+
+        // Store in transient for potential retrieval by continuation
+        set_transient('wordsurf_tool_result_' . $tool_call_id, $tool_result_data, 300); // 5 minute expiry
+
+        // Send success response with chat continuation flag and tool result
+        http_response_code(200);
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Diff feedback recorded',
+            'continue_chat' => true,
+            'tool_result' => $tool_result_data
+        ]);
+        exit;
+    }
+
+    /**
+     * Handle tool result continuation - send tool result to model for natural response
+     */
+    public function handle_tool_result_continuation() {
+        // Verify nonce for security
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'wordsurf_nonce')) {
+            http_response_code(403);
             echo 'Invalid nonce';
             exit;
         }
@@ -123,20 +190,63 @@ class Wordsurf_Chat_Handler {
             exit;
         }
 
-        $user_action = $_POST['user_action'] ?? '';
-        $tool_type = $_POST['tool_type'] ?? '';
-        $post_id = intval($_POST['post_id'] ?? 0);
+        $tool_call_id = $_POST['tool_call_id'] ?? '';
+        $messages = isset($_POST['messages']) ? json_decode(stripslashes($_POST['messages']), true) : null;
+        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
+        $action = $_POST['user_action'] ?? '';
 
-        // Log the feedback for context management
-        error_log("Wordsurf DEBUG: User feedback received - Action: {$user_action}, Tool: {$tool_type}, Post: {$post_id}");
+        // Retrieve stored tool result
+        $tool_result_data = get_transient('wordsurf_tool_result_' . $tool_call_id);
+        if (!$tool_result_data) {
+            http_response_code(400);
+            echo 'Tool result not found or expired';
+            exit;
+        }
 
-        // TODO: Store this feedback in context manager for future AI awareness
-        // This could be used to improve AI suggestions and track user preferences
+        // Add tool result message to conversation
+        $tool_result_message = [
+            'role' => 'tool',
+            'tool_call_id' => $tool_call_id,
+            'content' => json_encode([
+                'success' => true,
+                'user_action' => $action,
+                'message' => $action === 'accepted' ? 
+                    'The user accepted the proposed changes and they have been applied to the content.' :
+                    'The user rejected the proposed changes and they have been reverted.'
+            ])
+        ];
 
-        // Send success response
-        http_response_code(200);
-        echo json_encode(['success' => true, 'message' => 'Feedback recorded']);
-        exit;
+        // Add the tool result to the message history
+        $messages[] = $tool_result_message;
+
+        $request_data = [
+            'messages' => $messages,
+            'post_id' => $post_id,
+            'context_window' => null,
+        ];
+
+        error_log('Wordsurf DEBUG: Tool result continuation. Messages: ' . json_encode($messages));
+
+        // Set up streaming response headers
+        if (!headers_sent()) {
+            header('Content-Type: text/event-stream');
+            header('Cache-Control: no-cache');
+            header('Connection: keep-alive');
+            header('X-Accel-Buffering: no');
+            header('Access-Control-Allow-Origin: *');
+            header('Access-Control-Allow-Methods: POST');
+            header('Access-Control-Allow-Headers: Content-Type');
+        }
+        
+        // Disable output buffering
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Pass to Agent Core for streaming response
+        $this->agent_core->handle_chat_request($request_data);
+        
+        wp_die();
     }
 
     /**

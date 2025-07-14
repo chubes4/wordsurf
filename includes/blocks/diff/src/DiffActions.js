@@ -1,4 +1,4 @@
-import { createBlock } from '@wordpress/blocks';
+import { ContentUpdater } from './ContentUpdater';
 
 /**
  * DiffActions Module
@@ -6,7 +6,7 @@ import { createBlock } from '@wordpress/blocks';
  * Handles all diff-related actions including:
  * - Accept/reject logic
  * - Backend communication
- * - Block replacement
+ * - Coordinating content updates
  * - State management
  */
 
@@ -14,41 +14,30 @@ export class DiffActions {
     /**
      * Handle accepting a diff
      */
-    static async handleAccept(attributes, clientId, replaceBlock, currentPostId) {
-        const { 
-            toolCallId, 
-            diffId, 
-            originalContent, 
-            replacementContent, 
-            originalBlockContent, 
-            originalBlockType, 
-            searchPattern 
-        } = attributes;
+    static async handleAccept(attributes, clientId, currentPostId) {
+        const { toolCallId, diffId } = attributes;
         
         try {
-            // Apply the change to the full original block content
-            let finalContent = originalBlockContent || '';
-            
-            if (finalContent && originalContent && replacementContent) {
-                const searchText = searchPattern || originalContent;
-                if (finalContent.includes(searchText)) {
-                    finalContent = finalContent.replace(searchText, replacementContent);
-                }
-            }
-            
-            // Create new block with the updated content
-            const newBlock = createBlock(originalBlockType || 'core/paragraph', {
-                content: finalContent,
-            });
-            
-            replaceBlock(clientId, newBlock);
+            // Remove the diff wrapper and apply the accepted changes
+            ContentUpdater.removeDiffWrapper(clientId, true);
 
-            // Send acceptance to backend
-            await DiffActions.sendUserDecision('accepted', {
+            // Send acceptance signal to backend
+            const response = await DiffActions.sendUserDecision('accepted', {
                 tool_call_id: toolCallId,
                 diff_id: diffId,
                 post_id: currentPostId,
             });
+
+            // Check if backend indicates we should continue the chat
+            const responseData = await response.json();
+            if (responseData.continue_chat) {
+                DiffActions.triggerChatContinuation({
+                    action: 'accepted',
+                    toolCallId,
+                    diffId,
+                    postId: currentPostId
+                });
+            }
 
             return { success: true };
 
@@ -61,23 +50,30 @@ export class DiffActions {
     /**
      * Handle rejecting a diff
      */
-    static async handleReject(attributes, clientId, replaceBlock, currentPostId) {
-        const { toolCallId, diffId, originalBlockContent, originalBlockType } = attributes;
+    static async handleReject(attributes, clientId, currentPostId) {
+        const { toolCallId, diffId } = attributes;
         
         try {
-            // For rejections, restore the original block content exactly as it was
-            const newBlock = createBlock(originalBlockType || 'core/paragraph', {
-                content: originalBlockContent || '',
-            });
-            
-            replaceBlock(clientId, newBlock);
+            // Remove the diff wrapper and restore original content
+            ContentUpdater.removeDiffWrapper(clientId, false);
 
-            // Send rejection to backend
-            await DiffActions.sendUserDecision('rejected', {
+            // Send rejection signal to backend
+            const response = await DiffActions.sendUserDecision('rejected', {
                 tool_call_id: toolCallId,
                 diff_id: diffId,
                 post_id: currentPostId,
             });
+
+            // Check if backend indicates we should continue the chat
+            const responseData = await response.json();
+            if (responseData.continue_chat) {
+                DiffActions.triggerChatContinuation({
+                    action: 'rejected',
+                    toolCallId,
+                    diffId,
+                    postId: currentPostId
+                });
+            }
 
             return { success: true };
 
@@ -93,13 +89,13 @@ export class DiffActions {
     static async sendUserDecision(decision, data) {
         const formData = new FormData();
         formData.append('action', 'wordsurf_user_feedback');
-        formData.append('nonce', wp.ajax.settings.nonce);
+        formData.append('nonce', window.wordsurfData?.nonce || '');
         formData.append('user_action', decision);
         formData.append('tool_call_id', data.tool_call_id);
         formData.append('diff_id', data.diff_id);
         formData.append('post_id', data.post_id);
 
-        const response = await fetch(wp.ajax.settings.url, {
+        const response = await fetch(window.wordsurfData?.ajax_url || '/wp-admin/admin-ajax.php', {
             method: 'POST',
             body: formData,
         });
@@ -112,14 +108,32 @@ export class DiffActions {
     }
 
     /**
+     * Trigger chat continuation after diff acceptance/rejection
+     */
+    static triggerChatContinuation(toolResultData) {
+        // Dispatch a custom event that the chat interface can listen for
+        const event = new CustomEvent('wordsurf-continue-chat', {
+            bubbles: true,
+            detail: {
+                trigger: 'diff_resolved',
+                timestamp: Date.now(),
+                toolResult: toolResultData
+            }
+        });
+        
+        document.dispatchEvent(event);
+        console.log('DiffActions: Chat continuation event dispatched with tool result:', toolResultData);
+    }
+
+    /**
      * Create action handlers with proper context
      */
-    static createActionHandlers(attributes, clientId, replaceBlock, currentPostId, setIsProcessing, setAttributes) {
+    static createActionHandlers(attributes, clientId, currentPostId, setIsProcessing, setAttributes) {
         const handleAccept = async () => {
             setIsProcessing(true);
             try {
                 setAttributes({ status: 'accepted' });
-                await DiffActions.handleAccept(attributes, clientId, replaceBlock, currentPostId);
+                await DiffActions.handleAccept(attributes, clientId, currentPostId);
             } catch (error) {
                 setAttributes({ status: 'pending' });
                 throw error;
@@ -132,7 +146,7 @@ export class DiffActions {
             setIsProcessing(true);
             try {
                 setAttributes({ status: 'rejected' });
-                await DiffActions.handleReject(attributes, clientId, replaceBlock, currentPostId);
+                await DiffActions.handleReject(attributes, clientId, currentPostId);
             } catch (error) {
                 setAttributes({ status: 'pending' });
                 throw error;

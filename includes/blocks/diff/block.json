@@ -24,8 +24,12 @@
     "align": false,
     "anchor": true
   },
+  "usesContext": ["postId", "postType"],
+  "providesContext": {
+    "wordsurf/diffId": "diffId",
+    "wordsurf/diffType": "diffType"
+  },
   "editorScript": "wordsurf-diff-block",
   "editorStyle": "wordsurf-diff-block",
-  "style": "wordsurf-diff-block",
-  "render": "file:./render.php"
+  "style": "wordsurf-diff-block"
 } 

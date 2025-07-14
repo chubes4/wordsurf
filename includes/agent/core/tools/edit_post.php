@@ -123,14 +123,11 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
                 break;
         }
         
-        // Prepare regex flags
-        $flags = $case_sensitive ? '' : 'i';
+        // Load the smart text replacement function
+        require_once WORDSURF_PLUGIN_DIR . 'includes/blocks/diff/render.php';
         
-        // Escape the search pattern for regex use (since users provide plain text)
-        $escaped_pattern = preg_quote($search_pattern, '/');
-        
-        // Perform the search and replace
-        $new_content = preg_replace("/{$escaped_pattern}/{$flags}", $replacement_text, $current_content);
+        // Perform smart text replacement that preserves HTML attributes
+        $new_content = wordsurf_smart_text_replace($current_content, $search_pattern, $replacement_text, $case_sensitive);
         
         // Check if any replacements were made
         if ($new_content === $current_content) {
@@ -195,12 +192,27 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
      */
     private function find_and_wrap_target_blocks($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive) {
         // Parse content into blocks
-        $blocks = parse_blocks($content);
+        $all_blocks = parse_blocks($content);
+        
+        // Filter out empty blocks (those with null blockName)
+        $blocks = array_values(array_filter($all_blocks, function($block) {
+            return !empty($block['blockName']);
+        }));
+        
         $target_blocks_info = [];
+        
+        // Debug: Log total blocks and their content
+        error_log('Wordsurf DEBUG: Total blocks parsed: ' . count($all_blocks) . ', non-empty blocks: ' . count($blocks));
+        foreach ($blocks as $idx => $block) {
+            $block_name = $block['blockName'] ?: 'null';
+            $block_content = isset($block['innerHTML']) ? substr(strip_tags($block['innerHTML']), 0, 50) : 'no content';
+            error_log("Wordsurf DEBUG: Block $idx: name=$block_name, content_preview=$block_content");
+        }
         
         foreach ($blocks as $block_index => $block) {
             // Check if this block contains the search pattern
             if ($this->block_contains_pattern($block, $search_pattern, $case_sensitive)) {
+                error_log("Wordsurf DEBUG: Block $block_index contains pattern '$search_pattern'");
                 // Create diff wrapper block for this target
                 $wrapped_diff_block = $this->create_diff_wrapper_block($block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive);
                 
@@ -219,38 +231,6 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         return $target_blocks_info;
     }
     
-    /**
-     * Legacy method - kept for backward compatibility but now unused
-     * @deprecated Use find_and_wrap_target_blocks instead
-     */
-    private function wrap_target_blocks_with_diff($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive) {
-        $target_blocks_info = $this->find_and_wrap_target_blocks($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive);
-        
-        if (empty($target_blocks_info)) {
-            return '';
-        }
-        
-        // Build complete content with diff blocks for backward compatibility
-        $blocks = parse_blocks($content);
-        $modified_content = '';
-        
-        foreach ($blocks as $block_index => $block) {
-            $found_target = false;
-            foreach ($target_blocks_info as $target_info) {
-                if ($target_info['block_index'] === $block_index) {
-                    $modified_content .= $target_info['diff_wrapper_block'] . "\n\n";
-                    $found_target = true;
-                    break;
-                }
-            }
-            
-            if (!$found_target) {
-                $modified_content .= serialize_block($block) . "\n\n";
-            }
-        }
-        
-        return trim($modified_content);
-    }
     
     /**
      * Check if a block contains the search pattern
@@ -289,10 +269,9 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         // Convert attributes to JSON for the block
         $attributes_json = json_encode($diff_attributes);
         
-        // Get the serialized target block content
-        $target_block_content = serialize_block($target_block);
-        
-        // Return the complete diff block with wrapped content
-        return "<!-- wp:wordsurf/diff {$attributes_json} -->\n{$target_block_content}\n<!-- /wp:wordsurf/diff -->";
+        // Return the diff block as a replacement, not a wrapper
+        // The diff block will render the target content using its render.php
+        return "<!-- wp:wordsurf/diff {$attributes_json} -->\n<!-- /wp:wordsurf/diff -->";
     }
+    
 } 

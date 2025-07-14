@@ -60,6 +60,7 @@ const WordsurfSidebar = () => {
             }
         }
     }, [postData.blocks, diffContext.diffs.length]);
+
     // Handle diff received from chat handler
     const handleDiffReceived = useCallback((diffData) => {
         console.log('WordsurfPlugin: Received diff data:', diffData);
@@ -75,6 +76,34 @@ const WordsurfSidebar = () => {
         onDiffReceived: handleDiffReceived,
         chatHistory
     });
+
+    // Listen for chat continuation events from diff actions
+    useEffect(() => {
+        const handleChatContinuation = (event) => {
+            console.log('WordsurfPlugin: Chat continuation event received:', event.detail);
+            
+            // Check if we have a chat handler and no current streaming is happening
+            if (chatHandler && !chatHandler.isStreaming && !chatHandler.isWaiting) {
+                console.log('WordsurfPlugin: Triggering model-driven continuation with tool result');
+                
+                const { toolResult } = event.detail;
+                if (toolResult && toolResult.toolCallId) {
+                    // Trigger tool result continuation
+                    chatHandler.continueWithToolResult(toolResult);
+                } else {
+                    // Fallback: reset chat state for manual continuation
+                    chatHandler.resetForContinuation();
+                }
+            }
+        };
+
+        document.addEventListener('wordsurf-continue-chat', handleChatContinuation);
+        
+        return () => {
+            document.removeEventListener('wordsurf-continue-chat', handleChatContinuation);
+        };
+    }, [chatHandler]);
+
     const handleAcceptDiff = useCallback((diffData) => {
         chatHandler.recordUserDecision('accepted', diffData);
         setDiffContext(prev => ({

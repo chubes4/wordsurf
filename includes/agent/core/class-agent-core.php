@@ -144,7 +144,17 @@ class Wordsurf_Agent_Core {
         
         // Sanitize messages to only include OpenAI-compatible fields.
         $sanitized_messages = array_map(function($message) {
-            $allowed_keys = ['role', 'content', 'tool_calls', 'tool_call_id'];
+            // Handle tool messages differently
+            if ($message['role'] === 'tool') {
+                return [
+                    'role' => 'tool',
+                    'tool_call_id' => $message['tool_call_id'],
+                    'content' => $message['content']
+                ];
+            }
+            
+            // For non-tool messages
+            $allowed_keys = ['role', 'content', 'tool_calls'];
             $sanitized = array_intersect_key($message, array_flip($allowed_keys));
             
             // Remove any null content (for tool-calling messages)

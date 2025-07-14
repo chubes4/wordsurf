@@ -8,92 +8,162 @@
  */
 
 export class DiffRenderer {
+
     /**
-     * Create inline diff content with proper styling
-     * 
-     * @param {Object} attributes - Block attributes
-     * @returns {string} HTML content with inline diffs applied
+     * Apply ins/del tags directly to inner block content
+     * This modifies the actual block content with diff tags
      */
-    static createWrappedContent(attributes) {
+    static applyDiffTagsToBlocks(innerBlocks, attributes) {
         const {
-            diffId,
             diffType,
             originalContent,
             replacementContent,
-            originalBlockContent,
             searchPattern,
         } = attributes;
 
-        // Start with the original block content - preserve everything unchanged
-        let content = originalBlockContent || '';
-        
+        // For 'edit' type - find and replace specific text with ins/del tags
         if (diffType === 'edit' && originalContent && replacementContent) {
-            // Use the search pattern if available, otherwise fall back to original content
             const searchText = searchPattern || originalContent;
-            
-            // Only replace the specific text that changed, preserve everything else
-            if (content.includes(searchText)) {
-                const diffHtml = DiffRenderer.createEditDiffHtml(diffId, originalContent, replacementContent);
-                content = content.replace(searchText, diffHtml);
+            return DiffRenderer.applyEditTags(innerBlocks, searchText, originalContent, replacementContent);
+        }
+
+        // For 'write' type - wrap all content with ins/del for full replacement
+        if (diffType === 'write' && originalContent && replacementContent) {
+            return DiffRenderer.applyWriteTags(innerBlocks, originalContent, replacementContent);
+        }
+
+        // For 'insert' type - add ins tags for new content
+        if (diffType === 'insert' && replacementContent) {
+            return DiffRenderer.applyInsertTags(innerBlocks, replacementContent);
+        }
+
+        return innerBlocks;
+    }
+
+    /**
+     * Apply edit diff tags to specific text
+     */
+    static applyEditTags(innerBlocks, searchText, originalContent, replacementContent) {
+        // Find blocks containing the search text and apply ins/del tags
+        // This will modify the block content directly
+        return innerBlocks.map(block => {
+            if (block.attributes && block.attributes.content && block.attributes.content.includes(searchText)) {
+                const newContent = block.attributes.content.replace(
+                    searchText,
+                    `<del class="wordsurf-diff-removed">${originalContent}</del><ins class="wordsurf-diff-added">${replacementContent}</ins>`
+                );
+                return {
+                    ...block,
+                    attributes: {
+                        ...block.attributes,
+                        content: newContent
+                    }
+                };
             }
-        } else if (diffType === 'insert' && replacementContent) {
-            const diffHtml = DiffRenderer.createInsertDiffHtml(diffId, replacementContent);
+            return block;
+        });
+    }
+
+    /**
+     * Apply write diff tags for full content replacement
+     * Creates block-level word-by-word diff
+     */
+    static applyWriteTags(innerBlocks, _originalContent, replacementContent) {
+        // Parse the replacement content into blocks
+        const newBlocks = wp.blocks.parse(replacementContent);
+        
+        // Create smart block-level diff
+        const maxBlocks = Math.max(innerBlocks.length, newBlocks.length);
+        const diffBlocks = [];
+        
+        for (let i = 0; i < maxBlocks; i++) {
+            const oldBlock = innerBlocks[i];
+            const newBlock = newBlocks[i];
             
-            if (searchPattern && content.includes(searchPattern)) {
-                // Insert after the search pattern
-                content = content.replace(searchPattern, searchPattern + ' ' + diffHtml);
-            } else {
-                // Insert at the end
-                content = content + ' ' + diffHtml;
-            }
-        } else if (diffType === 'delete' && originalContent) {
-            // For deletions, replace the text to be deleted with diff highlighting
-            const searchText = searchPattern || originalContent;
-            
-            if (content.includes(searchText)) {
-                const diffHtml = DiffRenderer.createDeleteDiffHtml(diffId, originalContent);
-                content = content.replace(searchText, diffHtml);
+            if (oldBlock && newBlock) {
+                // Both blocks exist - create word-level diff within the block
+                const oldContent = oldBlock.attributes?.content || '';
+                const newContent = newBlock.attributes?.content || '';
+                
+                if (oldContent === newContent) {
+                    // No change - keep as is
+                    diffBlocks.push(newBlock);
+                } else {
+                    // Create inline diff within the block
+                    const diffContent = DiffRenderer.createWordLevelDiff(oldContent, newContent);
+                    diffBlocks.push({
+                        ...newBlock,
+                        attributes: {
+                            ...newBlock.attributes,
+                            content: diffContent
+                        }
+                    });
+                }
+            } else if (oldBlock && !newBlock) {
+                // Block was removed
+                diffBlocks.push({
+                    ...oldBlock,
+                    attributes: {
+                        ...oldBlock.attributes,
+                        content: `<del class="wordsurf-diff-removed">${oldBlock.attributes?.content || ''}</del>`
+                    }
+                });
+            } else if (!oldBlock && newBlock) {
+                // Block was added
+                diffBlocks.push({
+                    ...newBlock,
+                    attributes: {
+                        ...newBlock.attributes,
+                        content: `<ins class="wordsurf-diff-added">${newBlock.attributes?.content || ''}</ins>`
+                    }
+                });
             }
         }
         
-        return content;
+        return diffBlocks;
     }
 
     /**
-     * Create HTML for edit diff (deletion + insertion)
+     * Apply insert diff tags
      */
-    static createEditDiffHtml(diffId, originalContent, replacementContent) {
-        return `<span class="wordsurf-diff-container" data-diff-id="${diffId}">` +
-               `<del class="wordsurf-diff-removed">${originalContent}</del>` +
-               `<ins class="wordsurf-diff-added">${replacementContent}</ins>` +
-               `<span class="wordsurf-diff-controls">` +
-               `<button class="wordsurf-accept-btn" data-diff-id="${diffId}">✓</button>` +
-               `<button class="wordsurf-reject-btn" data-diff-id="${diffId}">✗</button>` +
-               `</span></span>`;
+    static applyInsertTags(innerBlocks, replacementContent) {
+        // Parse the replacement content into blocks  
+        const newBlocks = wp.blocks.parse(replacementContent);
+        
+        // Wrap new content in ins tags
+        const newBlocksWithInsTags = newBlocks.map(block => {
+            if (block.attributes && block.attributes.content) {
+                const wrappedContent = `<ins class="wordsurf-diff-added">${block.attributes.content}</ins>`;
+                return {
+                    ...block,
+                    attributes: {
+                        ...block.attributes,
+                        content: wrappedContent
+                    }
+                };
+            }
+            return block;
+        });
+        
+        // Add new blocks to the end of existing blocks
+        return [...innerBlocks, ...newBlocksWithInsTags];
     }
 
     /**
-     * Create HTML for insert diff
+     * Create word-level diff between two pieces of content
      */
-    static createInsertDiffHtml(diffId, replacementContent) {
-        return `<span class="wordsurf-diff-container" data-diff-id="${diffId}">` +
-               `<ins class="wordsurf-diff-added">${replacementContent}</ins>` +
-               `<span class="wordsurf-diff-controls">` +
-               `<button class="wordsurf-accept-btn" data-diff-id="${diffId}">✓</button>` +
-               `<button class="wordsurf-reject-btn" data-diff-id="${diffId}">✗</button>` +
-               `</span></span>`;
-    }
-
-    /**
-     * Create HTML for delete diff
-     */
-    static createDeleteDiffHtml(diffId, originalContent) {
-        return `<span class="wordsurf-diff-container" data-diff-id="${diffId}">` +
-               `<del class="wordsurf-diff-removed">${originalContent}</del>` +
-               `<span class="wordsurf-diff-controls">` +
-               `<button class="wordsurf-accept-btn" data-diff-id="${diffId}">✓</button>` +
-               `<button class="wordsurf-reject-btn" data-diff-id="${diffId}">✗</button>` +
-               `</span></span>`;
+    static createWordLevelDiff(oldContent, newContent) {
+        // Simple word-by-word diff algorithm
+        const oldWords = oldContent.split(/(\s+|<[^>]*>)/);
+        const newWords = newContent.split(/(\s+|<[^>]*>)/);
+        
+        // For now, use a simple approach: if content is different, show old/new
+        if (oldContent === newContent) {
+            return newContent;
+        }
+        
+        // If completely different, show full replacement
+        return `<del class="wordsurf-diff-removed">${oldContent}</del><ins class="wordsurf-diff-added">${newContent}</ins>`;
     }
 
     /**

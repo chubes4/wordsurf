@@ -95,8 +95,10 @@ export function createToolCallMessage(toolCallId, toolName, toolArguments) {
  */
 export function createToolResultMessage(toolCallId, toolResult) {
     return {
-        role: 'assistant',
-        id: toolCallId,
+        role: 'tool',
+        tool_call_id: toolCallId,
+        content: JSON.stringify(toolResult),
+        // Keep these for UI display purposes
         author: 'agent',
         type: 'tool',
         tool_name: toolResult.tool_name || '',

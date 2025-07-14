@@ -11,7 +11,6 @@ export class HandleAcceptAll {
      * Accept all diff blocks in the editor
      */
     static async acceptAll() {
-        const { replaceBlock } = wp.data.dispatch('core/block-editor');
         const { getCurrentPostId } = wp.data.select('core/editor');
         
         const diffBlocks = FindDiffBlocks.findAllDiffBlocks();
@@ -25,7 +24,6 @@ export class HandleAcceptAll {
                 await DiffActions.handleAccept(
                     diffBlock.attributes,
                     diffBlock.clientId,
-                    replaceBlock,
                     currentPostId
                 );
                 console.log('HandleAcceptAll: Accepted diff block', diffBlock.attributes.diffId);
@@ -41,7 +39,6 @@ export class HandleAcceptAll {
      * Reject all diff blocks in the editor
      */
     static async rejectAll() {
-        const { replaceBlock } = wp.data.dispatch('core/block-editor');
         const { getCurrentPostId } = wp.data.select('core/editor');
         
         const diffBlocks = FindDiffBlocks.findAllDiffBlocks();
@@ -55,7 +52,6 @@ export class HandleAcceptAll {
                 await DiffActions.handleReject(
                     diffBlock.attributes,
                     diffBlock.clientId,
-                    replaceBlock,
                     currentPostId
                 );
                 console.log('HandleAcceptAll: Rejected diff block', diffBlock.attributes.diffId);

@@ -62,19 +62,16 @@ function wordsurf_enqueue_editor_assets() {
         true
     );
 
-    wp_enqueue_style(
-        'wordsurf-diff-block',
-        WORDSURF_PLUGIN_URL . 'assets/css/editor/diff-block.css',
-        array(),
-        filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/editor/diff-block.css')
-    );
 
-    // Localize script with plugin data
-    wp_localize_script('wordsurf-editor', 'wordsurfData', array(
-        'ajaxUrl' => admin_url('admin-ajax.php'),
+    // Localize script with plugin data for both scripts
+    $script_data = array(
+        'ajax_url' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('wordsurf_nonce'),
         'pluginUrl' => WORDSURF_PLUGIN_URL,
-    ));
+    );
+    
+    wp_localize_script('wordsurf-editor', 'wordsurfData', $script_data);
+    wp_localize_script('wordsurf-diff-block', 'wordsurfData', $script_data);
 }
 add_action('enqueue_block_editor_assets', 'wordsurf_enqueue_editor_assets');
 
@@ -82,6 +79,14 @@ add_action('enqueue_block_editor_assets', 'wordsurf_enqueue_editor_assets');
  * Register custom blocks
  */
 function wordsurf_register_blocks() {
+    // Register block styles
+    wp_register_style(
+        'wordsurf-diff-block',
+        WORDSURF_PLUGIN_URL . 'includes/blocks/diff/src/style.css',
+        array(),
+        filemtime(WORDSURF_PLUGIN_DIR . 'includes/blocks/diff/src/style.css')
+    );
+
     // Register the diff block using block.json
     register_block_type(WORDSURF_PLUGIN_DIR . 'includes/blocks/diff');
 }
