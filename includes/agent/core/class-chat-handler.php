@@ -145,29 +145,16 @@ class Wordsurf_Chat_Handler {
         // - Tracking accept/reject patterns for learning
         // - Maintaining a history of changes
 
-        // Store the tool result for potential model continuation
-        $tool_result_data = [
-            'tool_call_id' => $tool_call_id,
-            'result' => [
-                'success' => true,
-                'action' => $user_action,
-                'diff_id' => $diff_id,
-                'message' => $user_action === 'accepted' ? 
-                    'User accepted the changes' : 
-                    'User rejected the changes'
-            ]
-        ];
-
-        // Store in transient for potential retrieval by continuation
-        set_transient('wordsurf_tool_result_' . $tool_call_id, $tool_result_data, 300); // 5 minute expiry
-
-        // Send success response with chat continuation flag and tool result
+        // Send success response with chat continuation flag
         http_response_code(200);
         echo json_encode([
             'success' => true, 
             'message' => 'Diff feedback recorded',
             'continue_chat' => true,
-            'tool_result' => $tool_result_data
+            'tool_result' => [
+                'tool_call_id' => $tool_call_id,
+                'action' => $user_action
+            ]
         ]);
         exit;
     }
@@ -198,11 +185,9 @@ class Wordsurf_Chat_Handler {
         $post_id = isset($request_data_source['post_id']) ? intval($request_data_source['post_id']) : null;
         $action = $request_data_source['user_action'] ?? '';
 
-        // Retrieve stored tool result
-        $tool_result_data = get_transient('wordsurf_tool_result_' . $tool_call_id);
-        if (!$tool_result_data) {
+        if (!$tool_call_id || !$messages || !$action) {
             http_response_code(400);
-            echo 'Tool result not found or expired';
+            echo 'Missing required parameters: tool_call_id, messages, and user_action are required';
             exit;
         }
 

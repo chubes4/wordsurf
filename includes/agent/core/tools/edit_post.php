@@ -254,7 +254,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
             'originalContent' => $search_pattern,
             'replacementContent' => $replacement_text,
             'status' => 'pending',
-            'toolCallId' => 'tool_call_' . uniqid(),
+            'toolCallId' => $context['_original_call_id'] ?? 'unknown',
             'editType' => $edit_type,
             'searchPattern' => $search_pattern,
             'caseSensitive' => $case_sensitive,

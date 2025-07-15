@@ -82,9 +82,13 @@ const WordsurfSidebar = () => {
         const handleChatContinuation = (event) => {
             console.log('WordsurfPlugin: Chat continuation event received:', event.detail);
             
-            // Clear pending diffs immediately when chat continuation starts
-            console.log('WordsurfPlugin: Clearing pending diffs for chat continuation');
-            setDiffContext(prev => ({ ...prev, diffs: [] }));
+            // Don't clear diffs here - let the editor monitoring handle it
+            // Only clear if this is an "accept all" operation
+            const { toolResult } = event.detail;
+            if (toolResult && toolResult.isAcceptAll) {
+                console.log('WordsurfPlugin: Clearing pending diffs for accept all operation');
+                setDiffContext(prev => ({ ...prev, diffs: [] }));
+            }
             
             // Check if we have a chat handler and no current streaming is happening
             if (chatHandler && !chatHandler.isStreaming && !chatHandler.isWaiting && !chatHandler.currentEventSource) {

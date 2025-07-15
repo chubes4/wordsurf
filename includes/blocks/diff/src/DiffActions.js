@@ -31,9 +31,11 @@ export class DiffActions {
             // Check if backend indicates we should continue the chat
             const responseData = await response.json();
             if (responseData.continue_chat && !suppressContinuation) {
+                // Use the original tool call ID from the backend response if available
+                const originalToolCallId = responseData.tool_result?.tool_call_id || toolCallId;
                 DiffActions.triggerChatContinuation({
                     action: 'accepted',
-                    toolCallId,
+                    toolCallId: originalToolCallId,
                     diffId,
                     postId: currentPostId
                 });
@@ -67,9 +69,11 @@ export class DiffActions {
             // Check if backend indicates we should continue the chat
             const responseData = await response.json();
             if (responseData.continue_chat && !suppressContinuation) {
+                // Use the original tool call ID from the backend response if available
+                const originalToolCallId = responseData.tool_result?.tool_call_id || toolCallId;
                 DiffActions.triggerChatContinuation({
                     action: 'rejected',
-                    toolCallId,
+                    toolCallId: originalToolCallId,
                     diffId,
                     postId: currentPostId
                 });

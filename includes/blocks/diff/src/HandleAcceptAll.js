@@ -50,7 +50,8 @@ export class HandleAcceptAll {
                 action: 'accepted',
                 toolCallId: lastToolCallId,
                 diffId: lastDiffId,
-                postId: currentPostId
+                postId: currentPostId,
+                isAcceptAll: true
             });
         }
         
@@ -100,7 +101,8 @@ export class HandleAcceptAll {
                 action: 'rejected',
                 toolCallId: lastToolCallId,
                 diffId: lastDiffId,
-                postId: currentPostId
+                postId: currentPostId,
+                isAcceptAll: true
             });
         }
         

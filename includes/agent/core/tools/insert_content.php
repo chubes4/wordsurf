@@ -288,7 +288,7 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
             'originalContent' => '',
             'replacementContent' => $content,
             'status' => 'pending',
-            'toolCallId' => 'tool_call_' . uniqid(),
+            'toolCallId' => $context['_original_call_id'] ?? 'unknown',
             'editType' => $content_type,
             'searchPattern' => '',
             'caseSensitive' => false,

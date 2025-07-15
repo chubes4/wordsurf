@@ -269,7 +269,7 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
             'originalContent' => $current_content, // The current post content
             'replacementContent' => $new_content,
             'status' => 'pending',
-            'toolCallId' => 'tool_call_' . uniqid(),
+            'toolCallId' => $context['_original_call_id'] ?? 'unknown',
             'editType' => 'full_post', // Indicates this is a full post replacement
             'searchPattern' => '', // Not used for full replacement
             'caseSensitive' => false,

@@ -86,9 +86,10 @@ class Wordsurf_Tool_Manager {
      *
      * @param string $tool_name
      * @param array $parameters
+     * @param string $call_id Optional call ID to pass to the tool
      * @return array
      */
-    public function execute_tool($tool_name, $parameters = []) {
+    public function execute_tool($tool_name, $parameters = [], $call_id = null) {
         if (!isset($this->tools[$tool_name])) {
             return [
                 'success' => false,
@@ -99,6 +100,11 @@ class Wordsurf_Tool_Manager {
         $tool = $this->tools[$tool_name];
         
         try {
+            // Add the original call ID to the context if provided
+            if ($call_id) {
+                $parameters['_original_call_id'] = $call_id;
+            }
+            
             $result = $tool->execute($parameters);
             return $result;
         } catch (Exception $e) {
@@ -170,7 +176,7 @@ class Wordsurf_Tool_Manager {
                             }
     
                             error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' with ID '{$item['call_id']}'.");
-                            $result = $this->execute_tool($tool_name, $arguments);
+                            $result = $this->execute_tool($tool_name, $arguments, $item['call_id']);
                             error_log("Wordsurf DEBUG (ToolManager): Tool '{$tool_name}' executed. Result: " . json_encode($result));
     
                             $pending_tool_calls[] = [
