@@ -2,6 +2,9 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { streamChatMessage } from './StreamApi';
 import { ChatStreamSession } from './ChatStreamSession';
 
+// Global flag to prevent concurrent EventSource connections
+let globalEventSourceActive = false;
+
 /**
  * ChatHandler - Refactored to use ChatStreamSession for all state and event management
  */
@@ -94,8 +97,13 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
     const continueWithToolResult = useCallback((toolResult) => {
         console.log('ChatHandler: Continuing with tool result:', toolResult);
         
-        if (session.isStreaming || session.hasSentMessage || session.currentEventSource) {
-            console.log('ChatHandler: Cannot continue - already streaming or has sent message');
+        if (session.isStreaming || session.hasSentMessage || session.currentEventSource || globalEventSourceActive) {
+            console.log('ChatHandler: Cannot continue - already streaming or has sent message', {
+                isStreaming: session.isStreaming,
+                hasSentMessage: session.hasSentMessage,
+                hasEventSource: !!session.currentEventSource,
+                globalActive: globalEventSourceActive
+            });
             return;
         }
 
@@ -104,6 +112,13 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         if (!responseId) {
             console.error('ChatHandler: No response ID available for continuation');
             return;
+        }
+
+        // Ensure any existing EventSource is properly closed before creating new one
+        if (session.currentEventSource) {
+            console.log('ChatHandler: Closing existing EventSource before creating new one');
+            session.currentEventSource.close();
+            session.currentEventSource = null;
         }
 
         // Prepare data for tool result continuation
@@ -121,6 +136,10 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
             params.append(key, value);
         }
 
+        // Set global flag to prevent concurrent connections
+        globalEventSourceActive = true;
+        
+        console.log('ChatHandler: Creating new EventSource for tool result continuation');
         const eventSource = new EventSource(`${window.wordsurfData?.ajax_url}?${params.toString()}`);
         
         session.isStreaming = true;
@@ -133,6 +152,11 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
             try {
                 const eventData = JSON.parse(event.data);
                 session.handleEvent(eventData);
+                
+                // Clear global flag on stream completion  
+                if (eventData.type === 'stream_end') {
+                    globalEventSourceActive = false;
+                }
             } catch (error) {
                 console.error('Error parsing SSE data:', error);
             }
@@ -145,6 +169,10 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
             session.isWaiting = false;
             session.hasSentMessage = false;
             session.currentEventSource = null;
+            
+            // Clear global flag
+            globalEventSourceActive = false;
+            
             updateUIState();
         };
 
@@ -167,5 +195,6 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         continueWithToolResult,
         hasStreamingAssistant: uiState.hasStreamingAssistant,
         currentEventSource: session.currentEventSource,
+        session: session, // Expose session for error recovery
     };
 }; 

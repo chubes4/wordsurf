@@ -3,6 +3,9 @@
 
 import { createUserMessage, createAssistantMessage, createToolCallMessage, createToolResultMessage } from '../../editor/MessageFormatUtils';
 
+// Global flag to prevent concurrent EventSource connections
+let globalEventSourceActive = false;
+
 export class ChatStreamSession {
     constructor(chatHistory, onDiffReceived) {
         this.chatHistory = chatHistory;
@@ -21,7 +24,26 @@ export class ChatStreamSession {
 
     // Start a new chat turn
     startStream(openaiMessages, postId, streamApi, onComplete, onError, onUIUpdate) {
-        if (this.isStreaming || this.hasSentMessage || this.currentEventSource) return;
+        if (this.isStreaming || this.hasSentMessage || this.currentEventSource || globalEventSourceActive) {
+            console.log('ChatStreamSession: Cannot start stream - already active', {
+                isStreaming: this.isStreaming,
+                hasSentMessage: this.hasSentMessage,
+                hasEventSource: !!this.currentEventSource,
+                globalActive: globalEventSourceActive
+            });
+            return;
+        }
+        
+        // Ensure any existing EventSource is properly closed before creating new one
+        if (this.currentEventSource) {
+            console.log('ChatStreamSession: Closing existing EventSource before creating new one');
+            this.currentEventSource.close();
+            this.currentEventSource = null;
+        }
+        
+        // Set global flag to prevent concurrent connections
+        globalEventSourceActive = true;
+        
         this.isStreaming = true;
         this.isWaiting = true; // Show 'Thinking...' immediately
         this.hasSentMessage = true;
@@ -30,6 +52,7 @@ export class ChatStreamSession {
         this.onUIUpdate = onUIUpdate;
         this.streamingMessageIndex = -1;
 
+        console.log('ChatStreamSession: Creating new EventSource for chat stream');
         this.currentEventSource = streamApi(
             openaiMessages,
             postId,
@@ -158,6 +181,10 @@ export class ChatStreamSession {
         this.currentEventSource = null;
         this.streamingMessageIndex = -1;
         this.accumulatedContent = '';
+        
+        // Clear global flag
+        globalEventSourceActive = false;
+        
         if (onComplete) onComplete();
         if (this.onUIUpdate) this.onUIUpdate();
     }
@@ -177,6 +204,10 @@ export class ChatStreamSession {
         this.currentEventSource = null;
         this.streamingMessageIndex = -1;
         this.accumulatedContent = '';
+        
+        // Clear global flag
+        globalEventSourceActive = false;
+        
         if (onError) onError(err);
         if (this.onUIUpdate) this.onUIUpdate();
     }
@@ -212,13 +243,52 @@ export class ChatStreamSession {
         return this.currentResponseId;
     }
 
-    // Clean up (e.g., on unmount)
-    cleanup() {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId);
-        }
+    // Force cleanup connection (for error recovery)
+    forceCleanupConnection() {
+        console.log('ChatStreamSession: Force cleaning up connection');
+        
         if (this.currentEventSource) {
             this.currentEventSource.close();
+            this.currentEventSource = null;
         }
+        
+        this.isStreaming = false;
+        this.isWaiting = false;
+        this.hasSentMessage = false;
+        
+        // Clear global flag
+        globalEventSourceActive = false;
+        
+        if (this.onUIUpdate) {
+            this.onUIUpdate();
+        }
+    }
+
+    // Clean up (e.g., on unmount)
+    cleanup() {
+        console.log('ChatStreamSession: Cleaning up session');
+        
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+        
+        if (this.currentEventSource) {
+            console.log('ChatStreamSession: Closing EventSource during cleanup');
+            this.currentEventSource.close();
+            this.currentEventSource = null;
+        }
+        
+        // Reset state
+        this.isStreaming = false;
+        this.isWaiting = false;
+        this.hasSentMessage = false;
+        this.streamingBuffer = '';
+        this.accumulatedContent = '';
+        this.streamingMessageIndex = -1;
+        this.currentResponseId = null;
+        
+        // Clear global flag
+        globalEventSourceActive = false;
     }
 } 

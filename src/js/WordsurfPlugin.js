@@ -113,8 +113,27 @@ const WordsurfSidebar = () => {
 
         document.addEventListener('wordsurf-continue-chat', handleChatContinuation);
         
+        // Add error recovery listener for EventSource issues
+        const handleEventSourceError = (event) => {
+            console.log('WordsurfPlugin: EventSource error event received:', event);
+            
+            // Check if we have a chat handler with an active connection
+            if (chatHandler && chatHandler.currentEventSource) {
+                console.log('WordsurfPlugin: Attempting to recover from EventSource error');
+                
+                // Get the session and force cleanup
+                const session = chatHandler.session;
+                if (session) {
+                    session.forceCleanupConnection();
+                }
+            }
+        };
+        
+        window.addEventListener('error', handleEventSourceError);
+        
         return () => {
             document.removeEventListener('wordsurf-continue-chat', handleChatContinuation);
+            window.removeEventListener('error', handleEventSourceError);
         };
     }, [chatHandler]);
 
