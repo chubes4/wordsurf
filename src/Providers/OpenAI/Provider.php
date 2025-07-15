@@ -1,0 +1,244 @@
+<?php
+/**
+ * AI HTTP Client - OpenAI Provider
+ * 
+ * Single Responsibility: Handle OpenAI API communication
+ * Uses Responses API (/v1/responses) as the primary endpoint.
+ * Based on Wordsurf's working implementation.
+ *
+ * @package AIHttpClient\Providers
+ * @author Chris Huber <https://chubes.net>
+ */
+
+defined('ABSPATH') || exit;
+
+class AI_HTTP_OpenAI_Provider extends AI_HTTP_Provider_Base {
+
+    protected $provider_name = 'openai';
+    
+    private $api_key;
+    private $organization;
+    private $base_url = 'https://api.openai.com/v1';
+    private $last_response_id;
+
+    protected function init() {
+        $this->api_key = $this->get_config('api_key');
+        $this->organization = $this->get_config('organization');
+        
+        // Allow custom base URL for OpenAI-compatible APIs
+        if ($this->get_config('base_url')) {
+            $this->base_url = rtrim($this->get_config('base_url'), '/');
+        }
+    }
+
+    public function send_request($request) {
+        $request = $this->sanitize_request($request);
+        
+        $url = $this->get_api_endpoint();
+        
+        return $this->make_request($url, $request);
+    }
+
+    public function send_streaming_request($request, $callback) {
+        $request = $this->sanitize_request($request);
+        
+        $url = $this->get_api_endpoint();
+        
+        return AI_HTTP_OpenAI_Streaming_Module::send_streaming_request(
+            $url,
+            $request,
+            $this->get_auth_headers(),
+            $callback,
+            $this->timeout
+        );
+    }
+
+    public function get_available_models() {
+        if (!$this->is_configured()) {
+            return array();
+        }
+
+        try {
+            // Fetch live models from OpenAI API using dedicated module
+            return AI_HTTP_OpenAI_Model_Fetcher::fetch_models(
+                $this->base_url,
+                $this->get_auth_headers()
+            );
+
+        } catch (Exception $e) {
+            // Return empty array if API call fails - no fallbacks
+            return array();
+        }
+    }
+
+
+    public function test_connection() {
+        if (!$this->is_configured()) {
+            return array(
+                'success' => false,
+                'message' => 'OpenAI API key not configured'
+            );
+        }
+
+        try {
+            $test_request = array(
+                'model' => 'gpt-3.5-turbo',
+                'messages' => array(
+                    array(
+                        'role' => 'user',
+                        'content' => 'Test connection'
+                    )
+                ),
+                'max_tokens' => 5
+            );
+
+            $response = $this->send_request($test_request);
+            
+            return array(
+                'success' => true,
+                'message' => 'Successfully connected to OpenAI API',
+                'model_used' => isset($response['model']) ? $response['model'] : 'unknown'
+            );
+
+        } catch (Exception $e) {
+            return array(
+                'success' => false,
+                'message' => 'Connection failed: ' . $e->getMessage()
+            );
+        }
+    }
+
+    public function is_configured() {
+        return !empty($this->api_key);
+    }
+
+    protected function get_api_endpoint() {
+        return $this->base_url . '/responses';
+    }
+
+    protected function get_auth_headers() {
+        $headers = array(
+            'Authorization' => 'Bearer ' . $this->api_key
+        );
+
+        if (!empty($this->organization)) {
+            $headers['OpenAI-Organization'] = $this->organization;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * OpenAI Responses API specific request sanitization
+     * Based on Wordsurf's working implementation
+     *
+     * @param array $request Request data
+     * @return array Sanitized request
+     */
+    protected function sanitize_request($request) {
+        $request = parent::sanitize_request($request);
+
+        // Convert standard format to Responses API format
+        if (isset($request['messages'])) {
+            $request['input'] = $request['messages'];
+            unset($request['messages']);
+        }
+
+        // Model will be set by automatic model detection if not provided
+
+        // Validate temperature
+        if (isset($request['temperature'])) {
+            $request['temperature'] = max(0, min(2, floatval($request['temperature'])));
+        }
+
+        // Validate max_tokens
+        if (isset($request['max_tokens'])) {
+            $request['max_tokens'] = max(1, intval($request['max_tokens']));
+        }
+
+        // Validate top_p
+        if (isset($request['top_p'])) {
+            $request['top_p'] = max(0, min(1, floatval($request['top_p'])));
+        }
+
+        // Handle function calling
+        if (isset($request['tools']) && is_array($request['tools'])) {
+            $request['tools'] = AI_HTTP_OpenAI_Function_Calling::sanitize_tools($request['tools']);
+        }
+
+        // Handle tool choice
+        if (isset($request['tool_choice'])) {
+            $request['tool_choice'] = AI_HTTP_OpenAI_Function_Calling::validate_tool_choice($request['tool_choice']);
+        }
+
+        return $request;
+    }
+
+
+    /**
+     * Continue conversation with tool results using OpenAI Responses API
+     * Based on Wordsurf's continuation pattern
+     *
+     * @param string $response_id Previous response ID from OpenAI
+     * @param array $tool_results Array of tool results to continue with
+     * @param callable|null $callback Completion callback for streaming
+     * @return string Full response from continuation request
+     */
+    public function continue_with_tool_results($response_id, $tool_results, $callback = null) {
+        if (empty($response_id)) {
+            throw new Exception('Response ID is required for continuation');
+        }
+        
+        // Format tool results as function_call_outputs for OpenAI Responses API
+        $function_call_outputs = array();
+        foreach ($tool_results as $result) {
+            $function_call_outputs[] = array(
+                'type' => 'function_call_output',
+                'call_id' => $result['tool_call_id'],
+                'output' => $result['content']
+            );
+        }
+        
+        $continuation_request = array(
+            'previous_response_id' => $response_id,
+            'input' => $function_call_outputs
+        );
+        
+        $url = $this->get_api_endpoint();
+        
+        if ($callback) {
+            return AI_HTTP_OpenAI_Streaming_Module::send_streaming_request(
+                $url,
+                $continuation_request,
+                $this->get_auth_headers(),
+                $callback,
+                $this->timeout
+            );
+        } else {
+            return $this->make_request($url, $continuation_request);
+        }
+    }
+
+    /**
+     * Get the response ID from the last response
+     * Used for continuation tracking
+     *
+     * @return string|null Response ID or null if not available
+     */
+    public function get_last_response_id() {
+        // This will be set by the response normalizer after each request
+        return $this->last_response_id ?? null;
+    }
+
+    /**
+     * Set the response ID from a response
+     * Called by response normalizer
+     *
+     * @param string $response_id Response ID to store
+     */
+    public function set_last_response_id($response_id) {
+        $this->last_response_id = $response_id;
+    }
+
+
+}
