@@ -157,7 +157,13 @@ HOWEVER: Keep your planning messages CONCISE. Describe your approach without quo
      * Build complete system prompt using modular AI HTTP Client system
      */
     public function build_prompt($post_context = [], $available_tools = []) {
-        $base_prompt = self::get_base_prompt();
+        // Get user's custom system prompt from UI component
+        $options_manager = new AI_HTTP_Options_Manager();
+        $provider = $options_manager->get_selected_provider();
+        $user_system_prompt = $options_manager->get_provider_setting($provider, 'system_prompt', '');
+        
+        // Use user's system prompt if provided, otherwise fall back to Wordsurf's base prompt
+        $base_prompt = !empty($user_system_prompt) ? $user_system_prompt : self::get_base_prompt();
         
         // Build context information
         $context = [
