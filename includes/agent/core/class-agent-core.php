@@ -142,9 +142,9 @@ class Wordsurf_Agent_Core {
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
         
-        // Sanitize messages to only include OpenAI-compatible fields.
+        // Convert messages to Responses API format
         $sanitized_messages = array_map(function($message) {
-            // Handle tool messages differently
+            // Handle tool messages differently - these stay in the same format
             if ($message['role'] === 'tool') {
                 return [
                     'role' => 'tool',
@@ -153,24 +153,68 @@ class Wordsurf_Agent_Core {
                 ];
             }
             
-            // For non-tool messages
-            $allowed_keys = ['role', 'content', 'tool_calls'];
-            $sanitized = array_intersect_key($message, array_flip($allowed_keys));
-            
-            // For assistant messages with tool calls, ensure content is present (can be empty string)
-            if ($message['role'] === 'assistant' && isset($message['tool_calls'])) {
-                if (!isset($sanitized['content']) || $sanitized['content'] === null) {
-                    $sanitized['content'] = '';
-                }
-            } else {
-                // Remove any null content for other message types
-                if (isset($sanitized['content']) && $sanitized['content'] === null) {
-                    unset($sanitized['content']);
-                }
+            // For user messages
+            if ($message['role'] === 'user') {
+                return [
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'input_text',
+                            'text' => $message['content']
+                        ]
+                    ]
+                ];
             }
             
-            return $sanitized;
+            // For system messages
+            if ($message['role'] === 'system') {
+                return [
+                    'role' => 'system',
+                    'content' => [
+                        [
+                            'type' => 'input_text',
+                            'text' => $message['content']
+                        ]
+                    ]
+                ];
+            }
+            
+            // For assistant messages - remove tool_calls as they're not supported in Responses API input
+            if ($message['role'] === 'assistant') {
+                // If this is a tool call message, we'll skip it since the Responses API
+                // doesn't support tool_calls in the input format
+                if (isset($message['tool_calls'])) {
+                    // Skip tool call messages in input - they're handled differently in Responses API
+                    return null;
+                }
+                
+                return [
+                    'role' => 'assistant',
+                    'content' => [
+                        [
+                            'type' => 'input_text',
+                            'text' => $message['content'] ?? ''
+                        ]
+                    ]
+                ];
+            }
+            
+            // Default fallback
+            return [
+                'role' => $message['role'],
+                'content' => [
+                    [
+                        'type' => 'input_text',
+                        'text' => $message['content'] ?? ''
+                    ]
+                ]
+            ];
         }, $this->message_history);
+        
+        // Remove null entries (skipped tool call messages) and reindex
+        $sanitized_messages = array_values(array_filter($sanitized_messages, function($message) {
+            return $message !== null;
+        }));
         
         $body = [
             'model' => 'gpt-4.1',
