@@ -157,9 +157,16 @@ class Wordsurf_Agent_Core {
             $allowed_keys = ['role', 'content', 'tool_calls'];
             $sanitized = array_intersect_key($message, array_flip($allowed_keys));
             
-            // Remove any null content (for tool-calling messages)
-            if (isset($sanitized['content']) && $sanitized['content'] === null) {
-                unset($sanitized['content']);
+            // For assistant messages with tool calls, ensure content is present (can be empty string)
+            if ($message['role'] === 'assistant' && isset($message['tool_calls'])) {
+                if (!isset($sanitized['content']) || $sanitized['content'] === null) {
+                    $sanitized['content'] = '';
+                }
+            } else {
+                // Remove any null content for other message types
+                if (isset($sanitized['content']) && $sanitized['content'] === null) {
+                    unset($sanitized['content']);
+                }
             }
             
             return $sanitized;

@@ -145,7 +145,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         $diff_id = 'diff_' . uniqid();
         
         // Find target blocks and create wrapped versions
-        $target_blocks_info = $this->find_and_wrap_target_blocks($current_content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive);
+        $target_blocks_info = $this->find_and_wrap_target_blocks($current_content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive, $context);
         
         if (empty($target_blocks_info)) {
             return [
@@ -187,7 +187,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
      * @param bool $case_sensitive Whether search is case sensitive
      * @return array Array of target block information for frontend processing
      */
-    private function find_and_wrap_target_blocks($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive) {
+    private function find_and_wrap_target_blocks($content, $search_pattern, $diff_id, $replacement_text, $edit_type, $case_sensitive, $context) {
         // Parse content into blocks
         $all_blocks = parse_blocks($content);
         
@@ -211,7 +211,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
             if ($this->block_contains_pattern($block, $search_pattern, $case_sensitive)) {
                 error_log("Wordsurf DEBUG: Block $block_index contains pattern '$search_pattern'");
                 // Create diff wrapper block for this target
-                $wrapped_diff_block = $this->create_diff_wrapper_block($block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive);
+                $wrapped_diff_block = $this->create_diff_wrapper_block($block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive, $context['_original_call_id'] ?? 'unknown');
                 
                 $target_blocks_info[] = [
                     'block_index' => $block_index,
@@ -246,7 +246,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
     /**
      * Create a diff wrapper block around a target block
      */
-    private function create_diff_wrapper_block($target_block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive) {
+    private function create_diff_wrapper_block($target_block, $diff_id, $search_pattern, $replacement_text, $edit_type, $case_sensitive, $tool_call_id) {
         // Create diff block attributes
         $diff_attributes = [
             'diffId' => $diff_id,
@@ -254,7 +254,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
             'originalContent' => $search_pattern,
             'replacementContent' => $replacement_text,
             'status' => 'pending',
-            'toolCallId' => $context['_original_call_id'] ?? 'unknown',
+            'toolCallId' => $tool_call_id,
             'editType' => $edit_type,
             'searchPattern' => $search_pattern,
             'caseSensitive' => $case_sensitive,
