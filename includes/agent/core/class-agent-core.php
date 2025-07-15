@@ -157,12 +157,7 @@ class Wordsurf_Agent_Core {
             if ($message['role'] === 'user') {
                 return [
                     'role' => 'user',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => $message['content']
-                        ]
-                    ]
+                    'content' => $message['content']
                 ];
             }
             
@@ -170,12 +165,7 @@ class Wordsurf_Agent_Core {
             if ($message['role'] === 'system') {
                 return [
                     'role' => 'system',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => $message['content']
-                        ]
-                    ]
+                    'content' => $message['content']
                 ];
             }
             
@@ -190,24 +180,14 @@ class Wordsurf_Agent_Core {
                 
                 return [
                     'role' => 'assistant',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => $message['content'] ?? ''
-                        ]
-                    ]
+                    'content' => $message['content'] ?? ''
                 ];
             }
             
             // Default fallback
             return [
                 'role' => $message['role'],
-                'content' => [
-                    [
-                        'type' => 'input_text',
-                        'text' => $message['content'] ?? ''
-                    ]
-                ]
+                'content' => $message['content'] ?? ''
             ];
         }, $this->message_history);
         
