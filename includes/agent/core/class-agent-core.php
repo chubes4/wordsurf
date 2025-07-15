@@ -207,7 +207,13 @@ class Wordsurf_Agent_Core {
         error_log('Wordsurf DEBUG: Making AI streaming request with provider: ' . $provider);
         
         // Stream the response with integrated tool processing
-        $full_response = $this->ai_client->send_streaming_request($request, $provider, [$this, 'handle_stream_completion']);
+        try {
+            $full_response = $this->ai_client->send_streaming_request($request, $provider, [$this, 'handle_stream_completion']);
+            error_log('Wordsurf DEBUG: Streaming request completed successfully');
+        } catch (Exception $e) {
+            error_log('Wordsurf DEBUG: Streaming request failed: ' . $e->getMessage());
+            throw $e;
+        }
         
         // Capture the response ID for potential continuation
         $this->current_response_id = $this->ai_client->get_last_response_id();
