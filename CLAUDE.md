@@ -26,92 +26,75 @@ npm run plugin-zip   # Create distribution zip
 
 ## Architecture Overview
 
-Wordsurf is an agentic WordPress plugin that integrates AI directly into the WordPress block editor. The system enables real-time chat with AI agents that can manipulate WordPress content through a sophisticated tool system.
+Wordsurf is an agentic WordPress plugin that integrates AI directly into the WordPress block editor. The system enables real-time streaming chat with AI agents that can read and manipulate WordPress content through a sophisticated tool system with diff preview capabilities.
 
-### Core Components
+### Core Streaming Architecture
 
-**Agent Core** (`includes/agent/core/`):
-- `class-agent-core.php` - Main orchestrator handling streaming chat requests
-- `class-tool-manager.php` - Discovers and manages available tools
-- `class-system-prompt.php` - Generates context-aware system prompts
-- `class-context-manager.php` - Handles post context and conversation state
+**Server-Sent Events (SSE)**: All AI interactions use streaming responses for real-time user experience. The `ChatStreamSession` class manages the streaming state and tool execution pipeline.
 
-**Tool System** (`includes/agent/core/tools/`):
-- `basetool.php` - Abstract base class for all tools
-- `read_post.php` - Reads and analyzes WordPress posts
-- `edit_post.php` - Performs surgical text edits with diff preview
-- `insert_content.php` - Inserts content at specific locations
-- `write_to_post.php` - Replaces entire post content
+**Integrated Tool Calling**: Tools execute during the streaming response, not after. This enables real-time feedback and immediate tool results integrated into the conversation flow.
 
-**Frontend Architecture** (`src/js/`):
-- `editor/` - WordPress block editor integration
-- `agent/core/` - Chat streaming and message handling
-- `context/` - State management for chat history and tools
+### Tool System Architecture 
 
-### Key Architectural Patterns
+**Tool Registration Pattern**: All tools extend `Wordsurf_BaseTool` and implement:
+- `get_name()`, `get_description()` - Tool metadata
+- `define_parameters()` - Declarative parameter definition with required flags
+- `execute($context)` - Tool logic with context from current post/conversation
 
-**Streaming Architecture**: 
-- Uses Server-Sent Events (SSE) for real-time AI responses
-- `ChatStreamSession` manages streaming state and tool execution
-- Backend processes streaming with integrated tool calling
+**Tool Schema Generation**: Base class automatically generates OpenAI function calling schemas from parameter definitions with proper strict mode handling.
 
-**Diff System**:
-- Block-level diff preview using custom `wordsurf/diff` blocks
-- Backend wraps target blocks, frontend renders diffs
-- Smart text replacement preserves HTML attributes (URLs, links)
-- User can accept/reject changes at block level
+**Tool Discovery**: `Wordsurf_Tool_Manager::load_tools()` automatically discovers and registers tools from `includes/agent/core/tools/`.
 
-**Tool Execution Flow**:
-1. AI decides to use tool during streaming
-2. Backend executes tool and returns result immediately
-3. If tool returns `preview: true`, frontend shows diff blocks
-4. User accepts/rejects diffs which updates actual content
+### Diff Preview System
 
-**Message Format**:
-- OpenAI API format with proper tool message handling
-- Backend sanitizes messages for API compatibility
-- Frontend maintains UI-friendly message history
+**Block-Level Diffs**: When tools return `preview: true`, the system:
+1. Backend wraps target blocks with custom `wordsurf/diff` blocks
+2. Frontend renders side-by-side diffs with accept/reject controls
+3. User approval triggers actual content updates
+4. Smart text replacement preserves HTML structure and attributes
+
+**Critical Block Indexing**: Both backend and frontend must filter out empty blocks (`blockName: null`) to maintain consistent block indexing when targeting specific blocks.
+
+### Frontend Architecture
+
+**Build System**: Uses `@wordpress/scripts` with custom webpack config:
+- `editor.js` - Main WordPress editor integration 
+- `admin.js` - Admin settings interface
+- `diff-block.js` - Custom diff block rendering
+
+**React Integration**: Integrates with WordPress data stores and follows WordPress component patterns. Key modules:
+- `ChatStreamSession` - Manages streaming state
+- `InlineDiffManager` - Handles diff block rendering
+- `MessageFormatUtils` - Formats OpenAI messages for UI
+
+### Message Flow Architecture
+
+**OpenAI Message Format**: System maintains OpenAI-compatible message history with proper tool message handling. Backend sanitizes messages for API compatibility while frontend maintains UI-friendly message display.
+
+**Context Management**: System prompt is dynamically generated with current post context and available tool descriptions for each request.
 
 ### Critical Implementation Details
 
-**Block Indexing**: Backend and frontend must filter out empty blocks (`blockName: null`) to maintain consistent indexing when finding target blocks.
+**Smart Text Replacement**: `wordsurf_smart_text_replace()` function parses HTML into tags vs text nodes, only replacing visible text content while preserving all HTML attributes and structure to prevent breaking URLs and links.
 
-**Smart Text Replacement**: Uses `wordsurf_smart_text_replace()` function that:
-- Parses HTML into tags vs text nodes
-- Only replaces visible text content
-- Preserves all HTML attributes and structure
-- Prevents breaking URLs and links during edits
-
-**Tool Registration**: New tools must:
-1. Extend `Wordsurf_BaseTool` 
-2. Implement `get_name()`, `get_description()`, `define_parameters()`, `execute()`
-3. Be registered in `Wordsurf_Tool_Manager::load_tools()`
+**Security Model**: 
+- All AJAX requests require valid WordPress nonces
+- Tool execution checks user capabilities (`edit_posts`, `publish_posts`) 
+- Content sanitized using WordPress functions (`wp_kses_post`, `sanitize_text_field`)
 
 **WordPress Integration**:
-- Uses `wp-scripts` for build system
-- Integrates with WordPress block editor data store
 - Respects WordPress user capabilities and nonces
 - Compatible with WordPress 5.0+ and PHP 7.4+
-
-## OpenAI API Configuration
-
-The plugin uses OpenAI's streaming API with function calling. Key settings:
-- Model: `gpt-4.1` 
-- Streaming: `true`
-- Tools are dynamically loaded from tool system
-- System prompt includes current post context and tool descriptions
-
-## Security Considerations
-
-- All AJAX requests require valid WordPress nonces
-- Tool execution checks user capabilities (`edit_posts`, `publish_posts`)
-- Content is sanitized using WordPress functions (`wp_kses_post`, `sanitize_text_field`)
-- API keys stored in WordPress options with proper escaping
-
-## Development Notes
-
-- Frontend uses React with WordPress data stores
-- Build system uses `@wordpress/scripts` for consistency
-- All JavaScript follows WordPress coding standards
-- PHP follows WordPress plugin development best practices
 - Debug logging available via `error_log()` with "Wordsurf DEBUG:" prefix
+
+## Development Patterns
+
+**Adding New Tools**:
+1. Create class extending `Wordsurf_BaseTool` in `includes/agent/core/tools/`
+2. Implement required methods with proper parameter definitions
+3. Register in `Wordsurf_Tool_Manager::load_tools()`
+4. Tool schema generation and registration is automatic
+
+**Function Calling Implementation**: Follow patterns from `.cursor/rules/function-calling-implementation.mdc` for strict mode function calling with comprehensive error handling and security validation.
+
+**Streaming Responses**: All AI interactions should use streaming for real-time user experience. Tools execute during streaming, not after completion.

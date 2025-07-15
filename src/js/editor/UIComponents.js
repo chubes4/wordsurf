@@ -113,6 +113,7 @@ export const PendingChanges = ({ diffs, onAcceptAll, onRejectAll }) => {
     return (
         <div className="wordsurf-pending-changes">
             <div className="pending-changes-content">
+                <div className="pending-changes-label">Pending changes:</div>
                 <div className="pending-changes-actions">
                     <button 
                         className="button button-primary" 

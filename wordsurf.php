@@ -62,6 +62,13 @@ function wordsurf_enqueue_editor_assets() {
         true
     );
 
+    // Enqueue tool call styles
+    wp_enqueue_style(
+        'wordsurf-tool-call',
+        WORDSURF_PLUGIN_URL . 'assets/css/agent/tool-call.css',
+        array(),
+        filemtime(WORDSURF_PLUGIN_DIR . 'assets/css/agent/tool-call.css')
+    );
 
     // Localize script with plugin data for both scripts
     $script_data = array(

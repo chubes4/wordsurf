@@ -123,11 +123,8 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
                 break;
         }
         
-        // Load the smart text replacement function
-        require_once WORDSURF_PLUGIN_DIR . 'includes/blocks/diff/render.php';
-        
         // Perform smart text replacement that preserves HTML attributes
-        $new_content = wordsurf_smart_text_replace($current_content, $search_pattern, $replacement_text, $case_sensitive);
+        $new_content = $this->smart_text_replace($current_content, $search_pattern, $replacement_text, $case_sensitive);
         
         // Check if any replacements were made
         if ($new_content === $current_content) {
@@ -272,6 +269,39 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         // Return the diff block as a replacement, not a wrapper
         // The diff block will render the target content using its render.php
         return "<!-- wp:wordsurf/diff {$attributes_json} -->\n<!-- /wp:wordsurf/diff -->";
+    }
+    
+    /**
+     * Smart text replacement that only replaces visible text content, not HTML attributes
+     */
+    private function smart_text_replace($content, $search_text, $replacement, $case_sensitive = false) {
+        // If content doesn't contain HTML tags, do simple replacement
+        if (strpos($content, '<') === false) {
+            return $case_sensitive ? str_replace($search_text, $replacement, $content) : str_ireplace($search_text, $replacement, $content);
+        }
+        
+        // For HTML content, we need to be more careful
+        // Split content into HTML tags and text nodes
+        $parts = preg_split('/(<[^>]+>)/', $content, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        
+        $result = '';
+        
+        foreach ($parts as $part) {
+            if (strpos($part, '<') === 0 && strpos($part, '>') === strlen($part) - 1) {
+                // This is an HTML tag - don't modify it
+                $result .= $part;
+            } else {
+                // This is text content - safe to modify
+                if ($case_sensitive) {
+                    $part = str_replace($search_text, $replacement, $part);
+                } else {
+                    $part = str_ireplace($search_text, $replacement, $part);
+                }
+                $result .= $part;
+            }
+        }
+        
+        return $result;
     }
     
 } 

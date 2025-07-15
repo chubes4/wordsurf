@@ -95,12 +95,7 @@ export class ToolHistory {
    */
   createUserDecisionMessage(action, toolData) {
     const actionText = action === 'accepted' ? 'accepted' : 'rejected';
-    const toolType = toolData.tool_type || 'tool';
-    let decisionMessage = `User ${actionText} the ${toolType} suggestion.`;
-    
-    if (action === 'accepted') {
-      decisionMessage += this.getAcceptanceDetails(toolType, toolData);
-    }
+    let decisionMessage = `${actionText} change`;
     
     return createUserMessage(decisionMessage);
   }

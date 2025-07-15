@@ -176,8 +176,11 @@ class Wordsurf_Chat_Handler {
      * Handle tool result continuation - send tool result to model for natural response
      */
     public function handle_tool_result_continuation() {
+        // Handle both GET (EventSource) and POST requests
+        $request_data_source = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET;
+        
         // Verify nonce for security
-        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'wordsurf_nonce')) {
+        if (!wp_verify_nonce($request_data_source['nonce'] ?? '', 'wordsurf_nonce')) {
             http_response_code(403);
             echo 'Invalid nonce';
             exit;
@@ -190,10 +193,10 @@ class Wordsurf_Chat_Handler {
             exit;
         }
 
-        $tool_call_id = $_POST['tool_call_id'] ?? '';
-        $messages = isset($_POST['messages']) ? json_decode(stripslashes($_POST['messages']), true) : null;
-        $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : null;
-        $action = $_POST['user_action'] ?? '';
+        $tool_call_id = $request_data_source['tool_call_id'] ?? '';
+        $messages = isset($request_data_source['messages']) ? json_decode(stripslashes($request_data_source['messages']), true) : null;
+        $post_id = isset($request_data_source['post_id']) ? intval($request_data_source['post_id']) : null;
+        $action = $request_data_source['user_action'] ?? '';
 
         // Retrieve stored tool result
         $tool_result_data = get_transient('wordsurf_tool_result_' . $tool_call_id);

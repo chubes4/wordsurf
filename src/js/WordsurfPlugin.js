@@ -82,6 +82,10 @@ const WordsurfSidebar = () => {
         const handleChatContinuation = (event) => {
             console.log('WordsurfPlugin: Chat continuation event received:', event.detail);
             
+            // Clear pending diffs immediately when chat continuation starts
+            console.log('WordsurfPlugin: Clearing pending diffs for chat continuation');
+            setDiffContext(prev => ({ ...prev, diffs: [] }));
+            
             // Check if we have a chat handler and no current streaming is happening
             if (chatHandler && !chatHandler.isStreaming && !chatHandler.isWaiting) {
                 console.log('WordsurfPlugin: Triggering model-driven continuation with tool result');
@@ -105,19 +109,23 @@ const WordsurfSidebar = () => {
     }, [chatHandler]);
 
     const handleAcceptDiff = useCallback((diffData) => {
-        chatHandler.recordUserDecision('accepted', diffData);
+        // Note: DiffActions already handles backend communication via sendUserDecision
+        // Only record locally in chat history - no need for duplicate backend call
+        chatHistory.current.addUserDecision('accepted', diffData);
         setDiffContext(prev => ({
             ...prev,
             diffs: prev.diffs.filter(d => d.tool_call_id !== diffData.tool_call_id)
         }));
-    }, [chatHandler]);
+    }, [chatHistory]);
     const handleRejectDiff = useCallback((diffData) => {
-        chatHandler.recordUserDecision('rejected', diffData);
+        // Note: DiffActions already handles backend communication via sendUserDecision
+        // Only record locally in chat history - no need for duplicate backend call
+        chatHistory.current.addUserDecision('rejected', diffData);
         setDiffContext(prev => ({
             ...prev,
             diffs: prev.diffs.filter(d => d.tool_call_id !== diffData.tool_call_id)
         }));
-    }, [chatHandler]);
+    }, [chatHistory]);
     
     // Accept/reject all changes handlers - clean bridge using DiffActions
     const handleAcceptAllChanges = useCallback(async () => {
@@ -127,9 +135,9 @@ const WordsurfSidebar = () => {
             const processedCount = await HandleAcceptAll.acceptAll();
             console.log('WordsurfPlugin: Accepted', processedCount, 'diff blocks');
             
-            // Record decisions and clear context
+            // Record decisions locally (DiffActions handles backend communication)
             diffContext.diffs.forEach(diff => {
-                chatHandler.recordUserDecision('accepted', diff);
+                chatHistory.current.addUserDecision('accepted', diff);
             });
             setDiffContext(prev => ({ ...prev, diffs: [] }));
         } catch (error) {
@@ -144,9 +152,9 @@ const WordsurfSidebar = () => {
             const processedCount = await HandleAcceptAll.rejectAll();
             console.log('WordsurfPlugin: Rejected', processedCount, 'diff blocks');
             
-            // Record decisions and clear context
+            // Record decisions locally (DiffActions handles backend communication)
             diffContext.diffs.forEach(diff => {
-                chatHandler.recordUserDecision('rejected', diff);
+                chatHistory.current.addUserDecision('rejected', diff);
             });
             setDiffContext(prev => ({ ...prev, diffs: [] }));
         } catch (error) {

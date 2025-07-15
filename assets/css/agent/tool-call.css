@@ -46,4 +46,64 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Pending Changes styles */
+.wordsurf-pending-changes {
+  margin: 12px 0;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+}
+
+.pending-changes-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pending-changes-label {
+  font-weight: 500;
+  color: #2c3338;
+  margin-right: 12px;
+}
+
+.pending-changes-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pending-changes-actions .button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.pending-changes-actions .button-primary {
+  background-color: #0073aa;
+  border-color: #0073aa;
+  color: #fff;
+}
+
+.pending-changes-actions .button-primary:hover {
+  background-color: #005a87;
+  border-color: #005a87;
+}
+
+.pending-changes-actions .button-secondary {
+  background-color: #f7f7f7;
+  border-color: #ccd0d4;
+  color: #2c3338;
+}
+
+.pending-changes-actions .button-secondary:hover {
+  background-color: #f1f1f1;
+  border-color: #999;
 } 
