@@ -40,9 +40,27 @@ export function toOpenAIFormat(messages) {
         return true;
     });
     
-    // Clean messages for OpenAI API - remove internal fields like isStreaming
+    // Convert messages to proper OpenAI format
     const cleanedMessages = filteredMessages.map(msg => {
         const { isStreaming, ...cleanMsg } = msg;
+        
+        // Convert tool call messages to proper OpenAI format
+        if (cleanMsg.type === 'tool' && cleanMsg.role === 'assistant') {
+            return {
+                role: 'assistant',
+                tool_calls: [
+                    {
+                        id: cleanMsg.id,
+                        type: 'function',
+                        function: {
+                            name: cleanMsg.tool_name,
+                            arguments: typeof cleanMsg.tool_args === 'string' ? cleanMsg.tool_args : JSON.stringify(cleanMsg.tool_args || {})
+                        }
+                    }
+                ]
+            };
+        }
+        
         return cleanMsg;
     });
     

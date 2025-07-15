@@ -108,3 +108,19 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 **Streaming Responses**: All AI interactions use streaming for real-time user experience. Tools execute during streaming, not after completion.
 
 **Diff Acceptance Pattern**: When implementing bulk operations (accept/reject all), suppress individual chat continuations and trigger a single continuation after all operations complete to prevent EventSource conflicts.
+
+## Planned Architecture Migration
+
+**AI HTTP Client Integration**: The plugin is planned to be migrated to use the `ai-http-client` library located at `/Users/chubes/Sites/ai-http-client` for AI API communication. This migration will:
+
+- **Centralize AI API Logic**: Replace the current direct OpenAI API calls with the standardized ai-http-client
+- **Improve Maintainability**: Use a shared, tested library for AI interactions across projects  
+- **Enhanced Features**: Leverage advanced features like request retries, rate limiting, and response caching
+- **Better Error Handling**: Benefit from comprehensive error handling and logging built into the client
+- **Multi-Provider Support**: Future support for different AI providers through the unified client interface
+
+**Migration Considerations**:
+- The streaming architecture should be preserved during migration
+- Tool calling functionality must remain compatible with the current diff preview system
+- EventSource-based streaming may need adaptation to work with the new client
+- Chat continuation flow should be maintained for seamless user experience
