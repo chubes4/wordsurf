@@ -133,8 +133,8 @@ class Wordsurf_Agent_Core {
 
         // Build and prepend the system prompt for the first turn.
         $context = $this->context_manager->get_context($post_id);
-        $tool_descriptions = $this->tool_manager->get_tool_descriptions();
-        $prompt_content = $this->system_prompt->build_prompt($context, $tool_descriptions);
+        $available_tools = $this->tool_manager->get_tools();
+        $prompt_content = $this->system_prompt->build_prompt($context, $available_tools);
         array_unshift($this->message_history, ['role' => 'system', 'content' => $prompt_content]);
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
