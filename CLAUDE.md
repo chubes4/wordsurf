@@ -124,3 +124,8 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 - Tool calling functionality must remain compatible with the current diff preview system
 - EventSource-based streaming may need adaptation to work with the new client
 - Chat continuation flow should be maintained for seamless user experience
+
+## Development Guidelines
+
+- **AI HTTP Client Changes**: 
+  - When changing AI HTTP Client, never make changes directly in the Wordsurf directory. Always make them in the original location and add to Wordsurf via git
