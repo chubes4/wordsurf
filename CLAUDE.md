@@ -87,6 +87,14 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 - Compatible with WordPress 5.0+ and PHP 7.4+
 - Debug logging available via `error_log()` with "Wordsurf DEBUG:" prefix
 
+### Chat Continuation Architecture
+
+**Event-Driven Continuation**: After tool acceptance/rejection, chat continuation is triggered via custom DOM events (`wordsurf-continue-chat`). This enables seamless conversation flow after user decisions.
+
+**State Management**: The system maintains separate diff context and chat state to prevent UI conflicts during tool acceptance flows.
+
+**EventSource Management**: Multiple EventSource connections are prevented through proper state checking in `ChatHandler` to avoid "Store already registered" errors.
+
 ## Development Patterns
 
 **Adding New Tools**:
@@ -95,6 +103,8 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 3. Register in `Wordsurf_Tool_Manager::load_tools()`
 4. Tool schema generation and registration is automatic
 
-**Function Calling Implementation**: Follow patterns from `.cursor/rules/function-calling-implementation.mdc` for strict mode function calling with comprehensive error handling and security validation.
+**Function Calling Implementation**: All tools use strict mode schemas with proper error handling and security validation. Parameters must be explicitly defined with `additionalProperties: false`.
 
-**Streaming Responses**: All AI interactions should use streaming for real-time user experience. Tools execute during streaming, not after completion.
+**Streaming Responses**: All AI interactions use streaming for real-time user experience. Tools execute during streaming, not after completion.
+
+**Diff Acceptance Pattern**: When implementing bulk operations (accept/reject all), suppress individual chat continuations and trigger a single continuation after all operations complete to prevent EventSource conflicts.

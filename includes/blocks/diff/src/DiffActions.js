@@ -14,7 +14,7 @@ export class DiffActions {
     /**
      * Handle accepting a diff
      */
-    static async handleAccept(attributes, clientId, currentPostId) {
+    static async handleAccept(attributes, clientId, currentPostId, suppressContinuation = false) {
         const { toolCallId, diffId } = attributes;
         
         try {
@@ -30,7 +30,7 @@ export class DiffActions {
 
             // Check if backend indicates we should continue the chat
             const responseData = await response.json();
-            if (responseData.continue_chat) {
+            if (responseData.continue_chat && !suppressContinuation) {
                 DiffActions.triggerChatContinuation({
                     action: 'accepted',
                     toolCallId,
@@ -50,7 +50,7 @@ export class DiffActions {
     /**
      * Handle rejecting a diff
      */
-    static async handleReject(attributes, clientId, currentPostId) {
+    static async handleReject(attributes, clientId, currentPostId, suppressContinuation = false) {
         const { toolCallId, diffId } = attributes;
         
         try {
@@ -66,7 +66,7 @@ export class DiffActions {
 
             // Check if backend indicates we should continue the chat
             const responseData = await response.json();
-            if (responseData.continue_chat) {
+            if (responseData.continue_chat && !suppressContinuation) {
                 DiffActions.triggerChatContinuation({
                     action: 'rejected',
                     toolCallId,

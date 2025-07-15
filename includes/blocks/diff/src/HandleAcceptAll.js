@@ -18,18 +18,40 @@ export class HandleAcceptAll {
         
         console.log('HandleAcceptAll: Processing', diffBlocks.length, 'diff blocks');
         
+        let lastToolCallId = null;
+        let lastDiffId = null;
+        
         // Process each diff block using DiffActions.handleAccept
-        for (const diffBlock of diffBlocks) {
+        // BUT suppress chat continuation until all are processed
+        for (let i = 0; i < diffBlocks.length; i++) {
+            const diffBlock = diffBlocks[i];
+            const isLastBlock = i === diffBlocks.length - 1;
+            
             try {
+                // Store the last tool call ID for continuation
+                lastToolCallId = diffBlock.attributes.toolCallId;
+                lastDiffId = diffBlock.attributes.diffId;
+                
                 await DiffActions.handleAccept(
                     diffBlock.attributes,
                     diffBlock.clientId,
-                    currentPostId
+                    currentPostId,
+                    !isLastBlock // suppressContinuation = true for all but last
                 );
                 console.log('HandleAcceptAll: Accepted diff block', diffBlock.attributes.diffId);
             } catch (error) {
                 console.error('HandleAcceptAll: Error accepting diff block', diffBlock.attributes.diffId, error);
             }
+        }
+        
+        // If we processed blocks and suppressed continuation, trigger it now
+        if (diffBlocks.length > 1 && lastToolCallId) {
+            DiffActions.triggerChatContinuation({
+                action: 'accepted',
+                toolCallId: lastToolCallId,
+                diffId: lastDiffId,
+                postId: currentPostId
+            });
         }
         
         return diffBlocks.length;
@@ -46,18 +68,40 @@ export class HandleAcceptAll {
         
         console.log('HandleAcceptAll: Rejecting', diffBlocks.length, 'diff blocks');
         
+        let lastToolCallId = null;
+        let lastDiffId = null;
+        
         // Process each diff block using DiffActions.handleReject
-        for (const diffBlock of diffBlocks) {
+        // BUT suppress chat continuation until all are processed
+        for (let i = 0; i < diffBlocks.length; i++) {
+            const diffBlock = diffBlocks[i];
+            const isLastBlock = i === diffBlocks.length - 1;
+            
             try {
+                // Store the last tool call ID for continuation
+                lastToolCallId = diffBlock.attributes.toolCallId;
+                lastDiffId = diffBlock.attributes.diffId;
+                
                 await DiffActions.handleReject(
                     diffBlock.attributes,
                     diffBlock.clientId,
-                    currentPostId
+                    currentPostId,
+                    !isLastBlock // suppressContinuation = true for all but last
                 );
                 console.log('HandleAcceptAll: Rejected diff block', diffBlock.attributes.diffId);
             } catch (error) {
                 console.error('HandleAcceptAll: Error rejecting diff block', diffBlock.attributes.diffId, error);
             }
+        }
+        
+        // If we processed blocks and suppressed continuation, trigger it now
+        if (diffBlocks.length > 1 && lastToolCallId) {
+            DiffActions.triggerChatContinuation({
+                action: 'rejected',
+                toolCallId: lastToolCallId,
+                diffId: lastDiffId,
+                postId: currentPostId
+            });
         }
         
         return diffBlocks.length;

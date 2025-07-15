@@ -159,5 +159,6 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         resetForContinuation,
         continueWithToolResult,
         hasStreamingAssistant: uiState.hasStreamingAssistant,
+        currentEventSource: session.currentEventSource,
     };
 }; 

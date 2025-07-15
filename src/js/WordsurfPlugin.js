@@ -87,7 +87,7 @@ const WordsurfSidebar = () => {
             setDiffContext(prev => ({ ...prev, diffs: [] }));
             
             // Check if we have a chat handler and no current streaming is happening
-            if (chatHandler && !chatHandler.isStreaming && !chatHandler.isWaiting) {
+            if (chatHandler && !chatHandler.isStreaming && !chatHandler.isWaiting && !chatHandler.currentEventSource) {
                 console.log('WordsurfPlugin: Triggering model-driven continuation with tool result');
                 
                 const { toolResult } = event.detail;
@@ -98,6 +98,12 @@ const WordsurfSidebar = () => {
                     // Fallback: reset chat state for manual continuation
                     chatHandler.resetForContinuation();
                 }
+            } else {
+                console.log('WordsurfPlugin: Skipping chat continuation - already streaming or waiting', {
+                    isStreaming: chatHandler?.isStreaming,
+                    isWaiting: chatHandler?.isWaiting,
+                    hasEventSource: !!chatHandler?.currentEventSource
+                });
             }
         };
 
