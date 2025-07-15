@@ -283,6 +283,14 @@ class Wordsurf_Agent_Core {
     public function handle_stream_completion($full_response) {
         error_log('Wordsurf DEBUG: Stream completed, processing tool calls');
         
+        // Capture response ID from OpenAI client if not already set
+        if (!$this->current_response_id) {
+            $this->current_response_id = $this->openai_client->get_last_response_id();
+            if ($this->current_response_id) {
+                error_log('Wordsurf DEBUG: Captured response ID during completion: ' . $this->current_response_id);
+            }
+        }
+        
         // Process tool calls and prepare results
         $this->pending_tool_calls = $this->tool_manager->process_and_execute_tool_calls($full_response);
         
