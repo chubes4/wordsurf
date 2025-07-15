@@ -10,7 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-require_once __DIR__ . '/../../api/class-sse-parser.php';
 
 class Wordsurf_Agent_Core {
     /**
@@ -32,11 +31,11 @@ class Wordsurf_Agent_Core {
      */
     private $tool_manager;
     /**
-     * OpenAI API client
+     * AI HTTP Client
      *
-     * @var Wordsurf_OpenAI_Client
+     * @var AI_HTTP_Client
      */
-    private $openai_client;
+    private $ai_client;
     /**
      * In-memory message history (per page load)
      *
@@ -55,12 +54,6 @@ class Wordsurf_Agent_Core {
      * @var string|null
      */
     private $current_response_id = null;
-    /**
-     * SSE Parser for handling streaming responses.
-     *
-     * @var Wordsurf_SSE_Parser
-     */
-    private $sse_parser;
 
     /**
      * Constructor
@@ -70,9 +63,7 @@ class Wordsurf_Agent_Core {
         $this->context_manager = new Wordsurf_Context_Manager();
         $this->tool_manager    = new Wordsurf_Tool_Manager();
         
-        $api_key = get_option('wordsurf_openai_api_key', '');
-        $this->openai_client = new Wordsurf_OpenAI_Client($api_key);
-        $this->sse_parser = new Wordsurf_SSE_Parser();
+        $this->ai_client = new AI_HTTP_Client();
         
         $this->reset_message_history();
     }
@@ -202,21 +193,24 @@ class Wordsurf_Agent_Core {
             return $message !== null;
         }));
         
-        $body = [
-            'model' => 'gpt-4.1',
-            'input' => $sanitized_messages,
+        $request = [
+            'messages' => $sanitized_messages,
+            'model' => get_option('wordsurf_ai_model', 'gpt-4o'),
             'tools' => $tool_schemas,
-            'stream' => true,
+            'max_tokens' => 1000,
         ];
 
+        // Get selected provider
+        $provider = get_option('wordsurf_ai_provider', 'openai');
+
         // The client streams raw chunks directly and returns the full response.
-        error_log('Wordsurf DEBUG: Making OpenAI streaming request...');
+        error_log('Wordsurf DEBUG: Making AI streaming request with provider: ' . $provider);
         
         // Stream the response with integrated tool processing
-        $full_response = $this->openai_client->stream_request_with_tool_processing($body, [$this, 'handle_stream_completion']);
+        $full_response = $this->ai_client->send_streaming_request($request, $provider, [$this, 'handle_stream_completion']);
         
         // Capture the response ID for potential continuation
-        $this->current_response_id = $this->openai_client->get_last_response_id();
+        $this->current_response_id = $this->ai_client->get_last_response_id();
         if ($this->current_response_id) {
             error_log('Wordsurf DEBUG: Stored response ID for continuation: ' . $this->current_response_id);
         }
@@ -239,27 +233,21 @@ class Wordsurf_Agent_Core {
             return '';
         }
         
-        // Format tool results as function_call_output array
-        $function_call_outputs = [];
-        foreach ($tool_results as $result) {
-            $function_call_outputs[] = [
-                'type' => 'function_call_output',
-                'call_id' => $result['tool_call_id'],
-                'output' => $result['content']
-            ];
-        }
+        error_log('Wordsurf DEBUG: Starting continuation with ' . count($tool_results) . ' tool results');
         
-        error_log('Wordsurf DEBUG: Starting continuation with ' . count($function_call_outputs) . ' tool results');
+        // Get selected provider for continuation
+        $provider = get_option('wordsurf_ai_provider', 'openai');
         
-        // Make continuation request
-        $full_response = $this->openai_client->stream_continuation_request(
+        // Make continuation request using AI HTTP Client
+        $full_response = $this->ai_client->continue_with_tool_results(
             $target_response_id, 
-            $function_call_outputs,
+            $tool_results,
+            $provider,
             [$this, 'handle_stream_completion']
         );
         
         // Update response ID for potential further continuations
-        $new_response_id = $this->openai_client->get_last_response_id();
+        $new_response_id = $this->ai_client->get_last_response_id();
         if ($new_response_id) {
             $this->current_response_id = $new_response_id;
             error_log('Wordsurf DEBUG: Updated response ID after continuation: ' . $this->current_response_id);
@@ -283,9 +271,9 @@ class Wordsurf_Agent_Core {
     public function handle_stream_completion($full_response) {
         error_log('Wordsurf DEBUG: Stream completed, processing tool calls');
         
-        // Capture response ID from OpenAI client if not already set
+        // Capture response ID from AI client if not already set
         if (!$this->current_response_id) {
-            $this->current_response_id = $this->openai_client->get_last_response_id();
+            $this->current_response_id = $this->ai_client->get_last_response_id();
             if ($this->current_response_id) {
                 error_log('Wordsurf DEBUG: Captured response ID during completion: ' . $this->current_response_id);
             }

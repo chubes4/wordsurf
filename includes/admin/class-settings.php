@@ -51,6 +51,29 @@ class Wordsurf_Settings {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+            
+            <h2>AI Provider Settings</h2>
+            <p>Configure your AI provider and model settings below. Wordsurf supports multiple AI providers including OpenAI, Anthropic (Claude), Google Gemini, Grok, and OpenRouter.</p>
+            
+            <?php
+            // Render the AI HTTP Client provider management component
+            echo AI_HTTP_ProviderManager_Component::render([
+                'components' => [
+                    'core' => ['provider_selector', 'api_key_input', 'model_selector'],
+                    'extended' => ['temperature_slider', 'system_prompt_field']
+                ],
+                'component_configs' => [
+                    'temperature_slider' => [
+                        'min' => 0,
+                        'max' => 1,
+                        'step' => 0.1,
+                        'default_value' => 0.7
+                    ]
+                ]
+            ]);
+            ?>
+            
+            <h2>Additional Settings</h2>
             <form action="options.php" method="post">
                 <?php
                 settings_fields( 'wordsurf_settings' );
@@ -66,29 +89,7 @@ class Wordsurf_Settings {
      * Register settings, sections, and fields.
      */
     public function register_settings() {
-        register_setting( 'wordsurf_settings', 'wordsurf_openai_api_key', 'sanitize_text_field' );
-
-        add_settings_section(
-            'wordsurf_api_settings_section',
-            'API Settings',
-            '__return_false', // No callback needed for the section description.
-            'wordsurf_settings'
-        );
-
-        add_settings_field(
-            'wordsurf_openai_api_key',
-            'OpenAI API Key',
-            [ $this, 'render_api_key_field' ],
-            'wordsurf_settings',
-            'wordsurf_api_settings_section'
-        );
-    }
-
-    /**
-     * Render the API key field.
-     */
-    public function render_api_key_field() {
-        $api_key = get_option( 'wordsurf_openai_api_key', '' );
-        echo '<input type="password" name="wordsurf_openai_api_key" value="' . esc_attr( $api_key ) . '" class="regular-text">';
+        // AI provider settings are now handled by AI HTTP Client component
+        // No additional settings needed at this time
     }
 } 

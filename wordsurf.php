@@ -25,6 +25,11 @@ define( 'WORDSURF_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WORDSURF_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 /**
+ * Load AI HTTP Client library
+ */
+require_once WORDSURF_PLUGIN_DIR . 'lib/ai-http-client/ai-http-client.php';
+
+/**
  * The code that runs during plugin activation.
  */
 function activate_wordsurf() {
@@ -146,8 +151,7 @@ final class Wordsurf {
         require_once WORDSURF_PLUGIN_DIR . 'includes/agent/context/class-context-manager.php';
 
         // API
-        require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-openai-client.php';
-            require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-rest-api.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-rest-api.php';
 
         // Admin
             require_once WORDSURF_PLUGIN_DIR . 'includes/admin/class-admin.php';
