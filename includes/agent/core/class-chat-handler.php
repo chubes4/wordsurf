@@ -181,39 +181,29 @@ class Wordsurf_Chat_Handler {
         }
 
         $tool_call_id = $request_data_source['tool_call_id'] ?? '';
-        $messages = isset($request_data_source['messages']) ? json_decode(stripslashes($request_data_source['messages']), true) : null;
-        $post_id = isset($request_data_source['post_id']) ? intval($request_data_source['post_id']) : null;
         $action = $request_data_source['user_action'] ?? '';
 
-        if (!$tool_call_id || !$messages || !$action) {
+        if (!$tool_call_id || !$action) {
             http_response_code(400);
-            echo 'Missing required parameters: tool_call_id, messages, and user_action are required';
+            echo 'Missing required parameters: tool_call_id and user_action are required';
             exit;
         }
 
-        // Add tool result message to conversation
-        $tool_result_message = [
-            'role' => 'tool',
-            'tool_call_id' => $tool_call_id,
-            'content' => json_encode([
-                'success' => true,
-                'user_action' => $action,
-                'message' => $action === 'accepted' ? 
-                    'The user accepted the proposed changes and they have been applied to the content.' :
-                    'The user rejected the proposed changes and they have been reverted.'
-            ])
+        // Create tool result in Responses API format
+        $tool_results = [
+            [
+                'tool_call_id' => $tool_call_id,
+                'content' => json_encode([
+                    'success' => true,
+                    'user_action' => $action,
+                    'message' => $action === 'accepted' ? 
+                        'The user accepted the proposed changes and they have been applied to the content.' :
+                        'The user rejected the proposed changes and they have been reverted.'
+                ])
+            ]
         ];
 
-        // Add the tool result to the message history
-        $messages[] = $tool_result_message;
-
-        $request_data = [
-            'messages' => $messages,
-            'post_id' => $post_id,
-            'context_window' => null,
-        ];
-
-        error_log('Wordsurf DEBUG: Tool result continuation. Messages: ' . json_encode($messages));
+        error_log('Wordsurf DEBUG: Tool result continuation using Responses API. Tool call ID: ' . $tool_call_id . ', Action: ' . $action);
 
         // Set up streaming response headers
         if (!headers_sent()) {
@@ -231,8 +221,8 @@ class Wordsurf_Chat_Handler {
             ob_end_clean();
         }
         
-        // Pass to Agent Core for streaming response
-        $this->agent_core->handle_chat_request($request_data);
+        // Use Responses API continuation pattern instead of conversation history
+        $this->agent_core->continue_with_tool_results($tool_results);
         
         wp_die();
     }
