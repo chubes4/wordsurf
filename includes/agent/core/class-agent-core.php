@@ -228,10 +228,13 @@ class Wordsurf_Agent_Core {
      * Continue conversation with tool results using Responses API continuation pattern
      *
      * @param array $tool_results Array of tool results from user interactions
+     * @param string|null $response_id Optional specific response ID to use
      * @return string The full, raw response from the continuation API call
      */
-    public function continue_with_tool_results($tool_results) {
-        if (!$this->current_response_id) {
+    public function continue_with_tool_results($tool_results, $response_id = null) {
+        $target_response_id = $response_id ?: $this->current_response_id;
+        
+        if (!$target_response_id) {
             error_log('Wordsurf DEBUG: No response ID available for continuation');
             return '';
         }
@@ -250,7 +253,7 @@ class Wordsurf_Agent_Core {
         
         // Make continuation request
         $full_response = $this->openai_client->stream_continuation_request(
-            $this->current_response_id, 
+            $target_response_id, 
             $function_call_outputs,
             [$this, 'handle_stream_completion']
         );
@@ -290,7 +293,8 @@ class Wordsurf_Agent_Core {
                 $tool_result = [
                     'tool_call_id' => $call['tool_call_object']['call_id'],
                     'tool_name' => $call['tool_call_object']['name'],
-                    'result' => $call['result']
+                    'result' => $call['result'],
+                    'response_id' => $this->current_response_id
                 ];
                 $this->send_tool_result_to_frontend($tool_result);
             }

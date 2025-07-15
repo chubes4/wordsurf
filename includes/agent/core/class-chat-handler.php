@@ -182,10 +182,11 @@ class Wordsurf_Chat_Handler {
 
         $tool_call_id = $request_data_source['tool_call_id'] ?? '';
         $action = $request_data_source['user_action'] ?? '';
+        $response_id = $request_data_source['response_id'] ?? '';
 
-        if (!$tool_call_id || !$action) {
+        if (!$tool_call_id || !$action || !$response_id) {
             http_response_code(400);
-            echo 'Missing required parameters: tool_call_id and user_action are required';
+            echo 'Missing required parameters: tool_call_id, user_action, and response_id are required';
             exit;
         }
 
@@ -203,7 +204,7 @@ class Wordsurf_Chat_Handler {
             ]
         ];
 
-        error_log('Wordsurf DEBUG: Tool result continuation using Responses API. Tool call ID: ' . $tool_call_id . ', Action: ' . $action);
+        error_log('Wordsurf DEBUG: Tool result continuation using Responses API. Tool call ID: ' . $tool_call_id . ', Action: ' . $action . ', Response ID: ' . $response_id);
 
         // Set up streaming response headers
         if (!headers_sent()) {
@@ -222,7 +223,7 @@ class Wordsurf_Chat_Handler {
         }
         
         // Use Responses API continuation pattern instead of conversation history
-        $this->agent_core->continue_with_tool_results($tool_results);
+        $this->agent_core->continue_with_tool_results($tool_results, $response_id);
         
         wp_die();
     }

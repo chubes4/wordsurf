@@ -16,6 +16,7 @@ export class ChatStreamSession {
         this.animationFrameId = null;
         this.onUIUpdate = null; // UI update callback
         this.streamingMessageIndex = -1; // Track which message is being streamed
+        this.currentResponseId = null; // Store response ID for continuation
     }
 
     // Start a new chat turn
@@ -67,11 +68,19 @@ export class ChatStreamSession {
                 break;
             case 'tool_result':
                 this.isWaiting = false;
-                const { tool_call_id, tool_name, result } = event.data;
+                const { tool_call_id, tool_name, result, response_id } = event.data;
+                
+                // Store response ID for continuation
+                if (response_id) {
+                    this.currentResponseId = response_id;
+                    console.log('ChatStreamSession: Stored response ID for continuation:', response_id);
+                }
+                
                 console.log('ChatStreamSession: Received tool_result:', {
                     tool_call_id,
                     tool_name,
                     result,
+                    response_id,
                     preview: result.preview,
                     hasCallback: !!this.onDiffReceived
                 });
@@ -196,6 +205,11 @@ export class ChatStreamSession {
     // Get input value
     getInputValue() {
         return this.inputValue || '';
+    }
+
+    // Get current response ID for continuation
+    getCurrentResponseId() {
+        return this.currentResponseId;
     }
 
     // Clean up (e.g., on unmount)

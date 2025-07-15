@@ -99,6 +99,13 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
             return;
         }
 
+        // Get response ID from session for continuation
+        const responseId = session.getCurrentResponseId();
+        if (!responseId) {
+            console.error('ChatHandler: No response ID available for continuation');
+            return;
+        }
+
         // Prepare data for tool result continuation
         const formData = new FormData();
         formData.append('action', 'wordsurf_continue_with_tool_result');
@@ -106,7 +113,7 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         formData.append('tool_call_id', toolResult.toolCallId);
         formData.append('user_action', toolResult.action);
         formData.append('post_id', toolResult.postId);
-        formData.append('messages', JSON.stringify(chatHistory.current.getOpenAIMessages()));
+        formData.append('response_id', responseId);
 
         // Create EventSource for streaming response
         const params = new URLSearchParams();
