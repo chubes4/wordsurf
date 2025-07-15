@@ -144,11 +144,11 @@ class Wordsurf_Agent_Core {
         
         // Convert messages to Responses API format
         $sanitized_messages = array_map(function($message) {
-            // Handle tool messages differently - these stay in the same format
+            // Handle tool messages - convert to assistant messages since 'tool' role isn't supported
             if ($message['role'] === 'tool') {
+                // Convert tool result to assistant message
                 return [
-                    'role' => 'tool',
-                    'tool_call_id' => $message['tool_call_id'],
+                    'role' => 'assistant',
                     'content' => $message['content']
                 ];
             }
