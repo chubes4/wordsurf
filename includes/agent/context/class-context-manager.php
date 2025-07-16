@@ -17,7 +17,7 @@ class Wordsurf_Context_Manager {
     /**
      * Get comprehensive context for the AI agent
      *
-     * @param int|null $post_id Optional post ID
+     * @param int|null $post_id Optional post ID (deprecated - will auto-detect current post for MVP simplicity)
      * @param array $additional_context Additional context data
      * @return array Complete context array
      */
@@ -28,7 +28,17 @@ class Wordsurf_Context_Manager {
             'site_url' => get_site_url(),
         );
         
-        // Add post context if provided
+        // Get current post ID from WordPress context (MVP: current post only)
+        if (!$post_id) {
+            $post_id = get_the_ID();
+            if (!$post_id) {
+                // Fallback for admin context
+                global $post;
+                $post_id = $post ? $post->ID : null;
+            }
+        }
+        
+        // Add post context if we have a post ID
         if ($post_id) {
             $context['current_post'] = $this->get_post_context($post_id);
         }

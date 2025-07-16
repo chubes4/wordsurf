@@ -69,12 +69,12 @@ class Wordsurf_Chat_Handler {
 
         // Get form data
         $messages = isset($request_data_source['messages']) ? json_decode(stripslashes($request_data_source['messages']), true) : null;
-        $post_id = isset($request_data_source['post_id']) ? intval($request_data_source['post_id']) : null;
         $context_window = isset($request_data_source['context_window']) ? json_decode(stripslashes($request_data_source['context_window']), true) : null;
+        
+        // Note: post_id parameter removed - tools get current post from WordPress context for MVP simplicity
         
         $request_data = [
             'messages' => $messages,
-            'post_id' => $post_id,
             'context_window' => $context_window,
         ];
 

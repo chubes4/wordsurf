@@ -27,7 +27,7 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
      * Get the tool description for the AI
      */
     public function get_description() {
-        return 'Replace the entire content of a WordPress post with new content. Perfect for writing posts from scratch, complete rewrites, or starting over with a blank slate. Shows a full post preview that the user can accept or reject.';
+        return 'Replace the entire content of the current WordPress post with new content. Perfect for writing posts from scratch, complete rewrites, or starting over with a blank slate. Shows a full post preview that the user can accept or reject. Always works on the post currently being edited.';
     }
     
     /**
@@ -37,11 +37,6 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
      */
     protected function define_parameters() {
         return [
-            'post_id' => [
-                'type' => 'integer',
-                'description' => 'The ID of the post to write content to',
-                'required' => true
-            ],
             'content' => [
                 'type' => 'string',
                 'description' => 'The new content for the post (will be formatted with proper WordPress paragraph blocks)',
@@ -73,7 +68,14 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
         // Debug: Log the parameters
         error_log('Wordsurf DEBUG: write_to_post tool called with parameters: ' . json_encode($context));
         
-        $post_id = $context['post_id'] ?? null;
+        // Get current post ID from WordPress context (MVP: current post only)
+        $post_id = get_the_ID();
+        if (!$post_id) {
+            // Fallback for admin context
+            global $post;
+            $post_id = $post ? $post->ID : null;
+        }
+        
         $content = $context['content'] ?? null;
         $title = $context['title'] ?? null;
         $excerpt = $context['excerpt'] ?? null;
@@ -83,7 +85,7 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
         if (!$post_id || !$content) {
             return [
                 'success' => false,
-                'error' => 'Missing required parameters: post_id and content are required'
+                'error' => 'Missing required parameter: content is required. Current post ID: ' . ($post_id ?: 'none')
             ];
         }
         

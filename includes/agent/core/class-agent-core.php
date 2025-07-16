@@ -113,10 +113,11 @@ class Wordsurf_Agent_Core {
      */
     public function handle_chat_request($request_data) {
         $messages = $request_data['messages'] ?? [];
-        $post_id  = $request_data['post_id'] ?? null;
+        
+        // Note: post_id parameter removed - tools get current post from WordPress context for MVP simplicity
         
         // Start the first turn. The underlying cURL call is blocking and will complete before moving on.
-        $full_response = $this->start_chat_turn($messages, $post_id);
+        $full_response = $this->start_chat_turn($messages);
 
         // Tool processing and result sending is now handled in start_chat_turn()
         // No additional processing needed here
@@ -127,15 +128,15 @@ class Wordsurf_Agent_Core {
      * It initiates the stream and returns the full response body for later processing.
      *
      * @param array $messages The full message history from the frontend.
-     * @param int|null $post_id The ID of the current post.
      * @return string The full, raw response from the OpenAI API.
      */
-    private function start_chat_turn($messages, $post_id = null) {
+    private function start_chat_turn($messages) {
         $this->message_history = $messages ?: [];
         $this->pending_tool_calls = []; // Clear any previous tool calls
 
         // Build and prepend the system prompt for the first turn.
-        $context = $this->context_manager->get_context($post_id);
+        // Note: context manager will get current post from WordPress context for MVP simplicity
+        $context = $this->context_manager->get_context();
         $available_tools = $this->tool_manager->get_tools();
         $prompt_content = $this->system_prompt->build_prompt($context, $available_tools);
         array_unshift($this->message_history, ['role' => 'system', 'content' => $prompt_content]);

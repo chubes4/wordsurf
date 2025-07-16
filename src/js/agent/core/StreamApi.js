@@ -2,16 +2,16 @@
  * Stream API - Handles communication with the WordPress backend.
  * Uses the native EventSource API for robust SSE handling.
  */
-export function streamChatMessage(messages, postId, onEvent, onComplete, onError) {
+export function streamChatMessage(messages, postId = null, onEvent, onComplete, onError) {
 
     // Construct the URL with query parameters for EventSource (which only supports GET)
     // We must still use our AJAX endpoint, but we'll trick it into thinking it's a POST
     // by sending data in the query string and checking for it in PHP. This is a
     // common workaround for streaming via WordPress AJAX.
+    // Note: postId parameter removed - tools get current post from WordPress context
     const params = new URLSearchParams({
         action: 'wordsurf_stream_chat',
         messages: JSON.stringify(messages),
-        post_id: postId,
         context_window: JSON.stringify({}), // For future use
         nonce: window.wordsurfData?.nonce || ''
     });

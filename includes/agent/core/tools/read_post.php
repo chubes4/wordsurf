@@ -21,7 +21,7 @@ class Wordsurf_ReadPostTool extends Wordsurf_BaseTool {
      * Get the tool description for the AI
      */
     public function get_description() {
-        return 'Read the content of a WordPress post or page. Use this to understand what content is currently in the post. This tool provides comprehensive post information including title, content, excerpt, metadata, and statistics.';
+        return 'Read the content of the current WordPress post being edited. Use this to understand what content is currently in the post. This tool provides comprehensive post information including title, content, excerpt, metadata, and statistics. Always works on the post currently being edited.';
     }
     
     /**
@@ -31,11 +31,7 @@ class Wordsurf_ReadPostTool extends Wordsurf_BaseTool {
      */
     protected function define_parameters() {
         return [
-            'post_id' => [
-                'type' => 'integer',
-                'description' => 'The ID of the post to read. This should be a valid WordPress post ID.',
-                'required' => true
-            ]
+            // No parameters needed - always reads the current post being edited
         ];
     }
 
@@ -46,20 +42,18 @@ class Wordsurf_ReadPostTool extends Wordsurf_BaseTool {
      * @return array
      */
     public function execute($context = []) {
-        $post_id = $context['post_id'] ?? null;
+        // Get current post ID from WordPress context (MVP: current post only)
+        $post_id = get_the_ID();
+        if (!$post_id) {
+            // Fallback for admin context
+            global $post;
+            $post_id = $post ? $post->ID : null;
+        }
         
         if (!$post_id) {
             return [
                 'success' => false,
-                'error' => 'No post ID provided'
-            ];
-        }
-        
-        // Validate post ID is an integer
-        if (!is_numeric($post_id) || (int)$post_id != $post_id) {
-            return [
-                'success' => false,
-                'error' => 'Invalid post ID provided. Post ID must be a valid integer.'
+                'error' => 'No current post found. This tool works on the post currently being edited.'
             ];
         }
         
