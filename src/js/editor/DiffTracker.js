@@ -2,54 +2,72 @@
  * DiffTracker - Centralized diff state management and continuation triggering
  * 
  * This module decouples diff acceptance/rejection from continuation logic.
- * It tracks the total number of diff blocks and triggers continuation events
+ * It tracks diff blocks by their Gutenberg clientId and triggers continuation events
  * when all diffs have been resolved (accepted or rejected).
  */
 
 export class DiffTracker {
     constructor() {
-        this.activeDiffs = new Set();
-        this.totalDiffsForCurrentTool = 0;
+        this.activeDiffBlocks = new Map(); // clientId -> diffInfo
         this.currentToolCallId = null;
         this.isTrackingBulkOperation = false;
+        this.postId = null;
+        
+        // Subscribe to Gutenberg block changes to keep state in sync
+        if (typeof wp !== 'undefined' && wp.data) {
+            wp.data.subscribe(() => {
+                this.syncWithEditor();
+            });
+        }
     }
 
     /**
-     * Initialize tracking for a new set of diff blocks
-     * Called when tool results create new diffs
+     * Initialize tracking for a new tool call
+     * Called when tool results are about to create new diffs
      */
-    startTracking(toolCallId, diffIds) {
-        console.log('DiffTracker: Starting tracking for tool:', toolCallId, 'with diffs:', diffIds);
+    startTracking(toolCallId, postId = null) {
+        console.log('DiffTracker: Starting tracking for tool:', toolCallId);
         
         this.currentToolCallId = toolCallId;
-        this.activeDiffs.clear();
+        this.postId = postId;
+        this.activeDiffBlocks.clear();
         
-        // Add all diff IDs to active tracking
-        diffIds.forEach(diffId => this.activeDiffs.add(diffId));
-        this.totalDiffsForCurrentTool = diffIds.length;
-        
-        console.log('DiffTracker: Now tracking', this.totalDiffsForCurrentTool, 'active diffs');
+        console.log('DiffTracker: Ready to track diff blocks for tool:', toolCallId);
     }
 
     /**
-     * Mark a diff as resolved (accepted or rejected)
+     * Add a diff block to tracking when it's created in the editor
      */
-    markDiffResolved(diffId, action, postId) {
-        if (!this.activeDiffs.has(diffId)) {
-            console.log('DiffTracker: Diff', diffId, 'not in active tracking, ignoring');
+    addDiffBlock(clientId, diffInfo) {
+        console.log('DiffTracker: Adding diff block:', clientId, diffInfo);
+        
+        this.activeDiffBlocks.set(clientId, {
+            ...diffInfo,
+            timestamp: Date.now()
+        });
+        
+        console.log('DiffTracker: Now tracking', this.activeDiffBlocks.size, 'active diff blocks');
+    }
+
+    /**
+     * Mark a diff block as resolved (accepted or rejected)
+     */
+    markDiffBlockResolved(clientId, action) {
+        if (!this.activeDiffBlocks.has(clientId)) {
+            console.log('DiffTracker: Diff block', clientId, 'not in active tracking, ignoring');
             return;
         }
 
-        console.log('DiffTracker: Marking diff as resolved:', diffId, 'action:', action);
-        this.activeDiffs.delete(diffId);
+        console.log('DiffTracker: Marking diff block as resolved:', clientId, 'action:', action);
+        this.activeDiffBlocks.delete(clientId);
         
-        const remainingDiffs = this.activeDiffs.size;
-        console.log('DiffTracker: Remaining active diffs:', remainingDiffs);
+        const remainingBlocks = this.activeDiffBlocks.size;
+        console.log('DiffTracker: Remaining active diff blocks:', remainingBlocks);
 
-        // If no more active diffs, trigger continuation
-        if (remainingDiffs === 0 && this.currentToolCallId) {
-            console.log('DiffTracker: All diffs resolved, triggering continuation');
-            this.triggerContinuation(action, postId);
+        // If no more active diff blocks, trigger continuation
+        if (remainingBlocks === 0 && this.currentToolCallId) {
+            console.log('DiffTracker: All diff blocks resolved, triggering continuation');
+            this.triggerContinuation(action);
         }
     }
 
@@ -66,15 +84,62 @@ export class DiffTracker {
      * End bulk operation tracking
      * This triggers continuation if all diffs are resolved
      */
-    endBulkOperation(action, postId) {
+    endBulkOperation(action) {
         console.log('DiffTracker: Ending bulk operation');
         this.isTrackingBulkOperation = false;
         
         // If all diffs are resolved, trigger continuation
-        if (this.activeDiffs.size === 0 && this.currentToolCallId) {
+        if (this.activeDiffBlocks.size === 0 && this.currentToolCallId) {
             console.log('DiffTracker: Bulk operation complete, triggering continuation');
-            this.triggerContinuation(action, postId);
+            this.triggerContinuation(action);
         }
+    }
+
+    /**
+     * Sync tracker state with current editor state
+     * Called when Gutenberg blocks change
+     */
+    syncWithEditor() {
+        // Only sync if we have active tracking
+        if (this.activeDiffBlocks.size === 0 || !this.currentToolCallId) {
+            return;
+        }
+
+        // Get current diff blocks from editor
+        const currentDiffBlocks = this.getCurrentDiffBlocks();
+        const currentClientIds = new Set(currentDiffBlocks.map(block => block.clientId));
+        
+        // Check if any of our tracked blocks no longer exist
+        const removedBlocks = [];
+        for (const clientId of this.activeDiffBlocks.keys()) {
+            if (!currentClientIds.has(clientId)) {
+                removedBlocks.push(clientId);
+            }
+        }
+        
+        // Remove blocks that no longer exist (user manually deleted)
+        removedBlocks.forEach(clientId => {
+            console.log('DiffTracker: Diff block', clientId, 'no longer exists, removing from tracking');
+            this.activeDiffBlocks.delete(clientId);
+        });
+        
+        // Check if all blocks are resolved
+        if (this.activeDiffBlocks.size === 0 && this.currentToolCallId && !this.isTrackingBulkOperation) {
+            console.log('DiffTracker: All diff blocks manually removed, triggering continuation');
+            this.triggerContinuation('resolved');
+        }
+    }
+
+    /**
+     * Get current diff blocks from Gutenberg editor
+     */
+    getCurrentDiffBlocks() {
+        if (typeof wp === 'undefined' || !wp.data) {
+            return [];
+        }
+
+        const blocks = wp.data.select('core/block-editor').getBlocks();
+        return blocks.filter(block => block.name === 'wordsurf/diff');
     }
 
     /**
@@ -89,18 +154,19 @@ export class DiffTracker {
      */
     getStatus() {
         return {
-            activeDiffs: Array.from(this.activeDiffs),
-            totalDiffs: this.totalDiffsForCurrentTool,
+            activeDiffBlocks: Array.from(this.activeDiffBlocks.keys()),
+            totalDiffBlocks: this.activeDiffBlocks.size,
             currentToolCallId: this.currentToolCallId,
             isBulkOperation: this.isTrackingBulkOperation,
-            allResolved: this.activeDiffs.size === 0
+            allResolved: this.activeDiffBlocks.size === 0,
+            postId: this.postId
         };
     }
 
     /**
      * Trigger continuation event
      */
-    triggerContinuation(action, postId) {
+    triggerContinuation(action) {
         if (!this.currentToolCallId) {
             console.log('DiffTracker: No current tool call ID, skipping continuation');
             return;
@@ -114,8 +180,8 @@ export class DiffTracker {
                 toolResult: {
                     action: action,
                     toolCallId: this.currentToolCallId,
-                    postId: postId,
-                    totalDiffs: this.totalDiffsForCurrentTool,
+                    postId: this.postId,
+                    totalDiffBlocks: this.activeDiffBlocks.size,
                     timestamp: Date.now()
                 }
             }
@@ -130,10 +196,10 @@ export class DiffTracker {
      */
     reset() {
         console.log('DiffTracker: Resetting tracking state');
-        this.activeDiffs.clear();
-        this.totalDiffsForCurrentTool = 0;
+        this.activeDiffBlocks.clear();
         this.currentToolCallId = null;
         this.isTrackingBulkOperation = false;
+        this.postId = null;
     }
 
     /**

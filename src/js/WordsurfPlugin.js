@@ -68,9 +68,9 @@ const WordsurfSidebar = () => {
         console.log('WordsurfPlugin: Has diff_block_content:', !!diffData.diff_block_content);
         
         // Initialize DiffTracker for new tool results
-        if (diffData.tool_call_id && diffData.diff_id) {
+        if (diffData.tool_call_id) {
             console.log('WordsurfPlugin: Initializing DiffTracker for tool:', diffData.tool_call_id);
-            diffTracker.startTracking(diffData.tool_call_id, [diffData.diff_id]);
+            diffTracker.startTracking(diffData.tool_call_id, postData.postId);
         }
         
         setDiffContext(prev => ({

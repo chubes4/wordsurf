@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { PinnedItems } from '@wordpress/interface';
 import { Button, Fill } from '@wordpress/components';
+import { diffTracker } from './DiffTracker';
 
 /**
  * InlineDiffManager Component V4: Modern Block Editor Only
@@ -108,6 +109,16 @@ export const InlineDiffManager = ({ diffContext, onAccept, onReject }) => {
                             
                             console.log(`InlineDiffManager: Replacing block ${block_index} (clientId: ${targetBlock.clientId}) with diff wrapper`);
                             replaceBlock(targetBlock.clientId, parsedDiffBlock);
+                            
+                            // Register the new diff block with DiffTracker
+                            if (parsedDiffBlock.clientId && parsedDiffBlock.attributes) {
+                                diffTracker.addDiffBlock(parsedDiffBlock.clientId, {
+                                    diffId: parsedDiffBlock.attributes.diffId,
+                                    toolCallId: parsedDiffBlock.attributes.toolCallId,
+                                    diffType: parsedDiffBlock.attributes.diffType,
+                                    originalBlockIndex: block_index
+                                });
+                            }
                         });
                         
                         console.log('InlineDiffManager: Successfully processed', currentDiff.target_blocks.length, 'target blocks granularly');

@@ -41,7 +41,7 @@ export class HandleAcceptAll {
         }
         
         // End bulk operation - DiffTracker will trigger continuation if all diffs are resolved
-        diffTracker.endBulkOperation('accepted', currentPostId);
+        diffTracker.endBulkOperation('accepted');
         
         return diffBlocks.length;
     }
@@ -79,7 +79,7 @@ export class HandleAcceptAll {
         }
         
         // End bulk operation - DiffTracker will trigger continuation if all diffs are resolved
-        diffTracker.endBulkOperation('rejected', currentPostId);
+        diffTracker.endBulkOperation('rejected');
         
         return diffBlocks.length;
     }

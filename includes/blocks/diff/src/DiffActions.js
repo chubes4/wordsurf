@@ -40,7 +40,7 @@ export class DiffActions {
                 // Only notify DiffTracker if no pending blocks remain for this diff ID
                 if (remainingPendingBlocks.length === 0) {
                     // Use DiffTracker to handle continuation logic
-                    diffTracker.markDiffResolved(diffId, 'accepted', currentPostId);
+                    diffTracker.markDiffBlockResolved(clientId, 'accepted');
                 }
             }
 
@@ -79,7 +79,7 @@ export class DiffActions {
                 // Only notify DiffTracker if no pending blocks remain for this diff ID
                 if (remainingPendingBlocks.length === 0) {
                     // Use DiffTracker to handle continuation logic
-                    diffTracker.markDiffResolved(diffId, 'rejected', currentPostId);
+                    diffTracker.markDiffBlockResolved(clientId, 'rejected');
                 }
             }
 
