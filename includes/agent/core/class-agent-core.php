@@ -178,52 +178,7 @@ class Wordsurf_Agent_Core {
         return $full_response;
     }
     
-    /**
-     * Continue conversation with tool results using Responses API continuation pattern
-     *
-     * @param array $tool_results Array of tool results from user interactions
-     * @param string|null $response_id Optional specific response ID to use
-     * @return string The full, raw response from the continuation API call
-     */
-    public function continue_with_tool_results($tool_results, $response_id = null) {
-        $target_response_id = $response_id ?: $this->current_response_id;
-        
-        if (!$target_response_id) {
-            error_log('Wordsurf DEBUG: No response ID available for continuation');
-            return '';
-        }
-        
-        error_log('Wordsurf DEBUG: Starting continuation with ' . count($tool_results) . ' tool results');
-        
-        // Get selected provider for continuation
-        $provider = get_option('wordsurf_ai_provider', 'openai');
-        
-        // Make continuation request using AI HTTP Client
-        $full_response = $this->ai_client->continue_with_tool_results(
-            $target_response_id, 
-            $tool_results,
-            $provider,
-            [$this, 'handle_stream_completion']
-        );
-        
-        // Update response ID for potential further continuations
-        $new_response_id = $this->ai_client->get_last_response_id();
-        if ($new_response_id) {
-            $this->current_response_id = $new_response_id;
-            error_log('Wordsurf DEBUG: Updated response ID after continuation: ' . $this->current_response_id);
-        }
-        
-        return $full_response;
-    }
     
-    /**
-     * Get the current response ID
-     *
-     * @return string|null The current response ID or null if not available
-     */
-    public function get_current_response_id() {
-        return $this->current_response_id;
-    }
     
     /**
      * Handle stream completion - process tools and send results
