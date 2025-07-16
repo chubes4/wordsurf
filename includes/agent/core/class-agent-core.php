@@ -279,7 +279,7 @@ class Wordsurf_Agent_Core {
         try {
             // Use library's provider-agnostic continuation method
             // Library handles: OpenAI response IDs vs Anthropic conversation rebuilding
-            $full_response = $this->ai_client->continue_with_tool_results($tool_results, null, [$this, 'handle_stream_completion']);
+            $full_response = $this->ai_client->continue_with_tool_results(null, $tool_results, null, [$this, 'handle_stream_completion']);
             
             error_log('Wordsurf DEBUG: Tool result continuation completed successfully');
             return $full_response;
