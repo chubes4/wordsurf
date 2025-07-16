@@ -87,9 +87,20 @@ export class ChatStreamSession {
         switch (event.type) {
             case 'tool_start':
                 this.isWaiting = false;
-                this.flushStreamingBuffer();
+                // Don't create a message if accumulated content is just ellipses or minimal content
+                // Reset streaming state instead to avoid empty bubbles
+                if (this.streamingMessageIndex !== -1) {
+                    const currentMessage = this.chatHistory.getMessages()[this.streamingMessageIndex];
+                    if (currentMessage && currentMessage.content && currentMessage.content.trim().length === 0) {
+                        // Remove empty message that was created for ellipses
+                        this.chatHistory.removeMessage(this.streamingMessageIndex);
+                    }
+                }
+                // Reset streaming state for tool call
+                this.streamingMessageIndex = -1;
+                this.accumulatedContent = '';
+                this.streamingBuffer = '';
                 this.chatHistory.addToolCall(event.data.call_id, event.data.name, event.data.arguments);
-                this.finalizeStreamingMessage();
                 break;
             case 'text':
                 this.isWaiting = false;

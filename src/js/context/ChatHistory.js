@@ -83,6 +83,17 @@ export class ChatHistory {
     return this;
   }
 
+  /**
+   * Remove message at specific index
+   */
+  removeMessage(messageIndex) {
+    if (messageIndex >= 0 && messageIndex < this.messages.length) {
+      this.messages.splice(messageIndex, 1);
+      return true;
+    }
+    return false;
+  }
+
 
   /**
    * Add a tool call from the assistant
