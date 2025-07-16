@@ -135,21 +135,15 @@ class Wordsurf_Tool_Manager {
     /**
      * Register all Wordsurf tools with the AI HTTP Client library
      * This replaces manual SSE parsing with proper library integration
+     * 
+     * Called once at plugin initialization, not per-instance
      */
-    public function register_tools_with_library() {
-        // Use a global variable to track registration across all instances
-        global $wordsurf_tools_registered;
+    public static function register_tools_with_library() {
+        // Register tools via WordPress filters using static callbacks
+        add_filter('ai_http_client_execute_tool', [__CLASS__, 'handle_tool_execution_filter'], 10, 4);
+        add_filter('ai_http_client_get_tool_definition', [__CLASS__, 'get_tool_definition_filter'], 10, 2);
+        add_filter('ai_http_client_get_all_tool_definitions', [__CLASS__, 'get_all_tool_definitions_filter'], 10, 1);
         
-        if ($wordsurf_tools_registered) {
-            return;
-        }
-        
-        // Register tools via WordPress filters (cleaner approach)
-        add_filter('ai_http_client_execute_tool', [$this, 'handle_tool_execution_filter'], 10, 4);
-        add_filter('ai_http_client_get_tool_definition', [$this, 'get_tool_definition_filter'], 10, 2);
-        add_filter('ai_http_client_get_all_tool_definitions', [$this, 'get_all_tool_definitions_filter'], 10, 1);
-        
-        $wordsurf_tools_registered = true;
         error_log('Wordsurf DEBUG (ToolManager): All tools registered with AI HTTP Client library via WordPress filters');
     }
     
@@ -163,19 +157,22 @@ class Wordsurf_Tool_Manager {
      * @param string $call_id Tool call ID
      * @return array|null Tool execution result or null if tool not handled
      */
-    public function handle_tool_execution_filter($result, $tool_name, $arguments, $call_id) {
+    public static function handle_tool_execution_filter($result, $tool_name, $arguments, $call_id) {
         // Only handle if no previous filter handled it
         if ($result !== null) {
             return $result;
         }
         
+        // Create instance to access tools
+        $tool_manager = new self();
+        
         // Only handle tools we know about
-        if (!isset($this->tools[$tool_name])) {
+        if (!isset($tool_manager->tools[$tool_name])) {
             return null;
         }
         
         error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' via AI HTTP Client library");
-        $result = $this->execute_tool($tool_name, $arguments, $call_id);
+        $result = $tool_manager->execute_tool($tool_name, $arguments, $call_id);
         error_log("Wordsurf DEBUG (ToolManager): Tool '{$tool_name}' returned: " . json_encode($result));
         return $result;
     }
@@ -187,16 +184,19 @@ class Wordsurf_Tool_Manager {
      * @param string $tool_name Tool name
      * @return array|null Tool definition or null if not our tool
      */
-    public function get_tool_definition_filter($definition, $tool_name) {
+    public static function get_tool_definition_filter($definition, $tool_name) {
         if ($definition !== null) {
             return $definition;
         }
         
-        if (!isset($this->tools[$tool_name])) {
+        // Create instance to access tools
+        $tool_manager = new self();
+        
+        if (!isset($tool_manager->tools[$tool_name])) {
             return null;
         }
         
-        $tool = $this->tools[$tool_name];
+        $tool = $tool_manager->tools[$tool_name];
         if (method_exists($tool, 'get_schema')) {
             return $tool->get_schema();
         }
@@ -210,8 +210,11 @@ class Wordsurf_Tool_Manager {
      * @param array $definitions Existing definitions
      * @return array Updated definitions
      */
-    public function get_all_tool_definitions_filter($definitions) {
-        foreach ($this->tools as $tool_name => $tool) {
+    public static function get_all_tool_definitions_filter($definitions) {
+        // Create instance to access tools
+        $tool_manager = new self();
+        
+        foreach ($tool_manager->tools as $tool_name => $tool) {
             if (method_exists($tool, 'get_schema')) {
                 $definitions[$tool_name] = $tool->get_schema();
             }

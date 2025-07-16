@@ -162,6 +162,9 @@ final class Wordsurf {
      * Hook into actions and filters.
      */
     private function init_hooks() {
+        // Register tools globally once at plugin initialization
+        $this->register_tools_with_ai_client();
+        
         // Initialize Chat Handler (this registers AJAX hooks)
         new Wordsurf_Chat_Handler();
         
@@ -171,6 +174,13 @@ final class Wordsurf {
         if ( is_admin() ) {
             new Wordsurf_Admin();
         }
+    }
+    
+    /**
+     * Register tools with AI HTTP Client globally (once per plugin load)
+     */
+    private function register_tools_with_ai_client() {
+        Wordsurf_Tool_Manager::register_tools_with_library();
     }
 }
 

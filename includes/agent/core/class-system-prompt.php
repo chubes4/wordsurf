@@ -21,6 +21,9 @@ class Wordsurf_System_Prompt {
         add_action('init', [__CLASS__, 'register_tool_definitions'], 10);
         add_action('init', [__CLASS__, 'set_default_enabled_tools'], 20);
         add_filter('ai_http_client_current_plugin', [__CLASS__, 'set_current_plugin'], 10);
+        add_filter('ai_http_client_inject_context', [__CLASS__, 'inject_post_context'], 10, 2);
+        
+        error_log('Wordsurf DEBUG: ai_http_client_inject_context filter registered');
     }
     
     /**
@@ -28,6 +31,90 @@ class Wordsurf_System_Prompt {
      */
     public static function set_current_plugin($plugin) {
         return 'wordsurf';
+    }
+    
+    /**
+     * Inject post context into system prompt
+     *
+     * @param string $prompt Current system prompt
+     * @param array $context Context data including post information
+     * @return string System prompt with post context included
+     */
+    public static function inject_post_context($prompt, $context) {
+        error_log('Wordsurf DEBUG: inject_post_context filter called with context: ' . json_encode($context));
+        
+        // Only inject context if we have context data
+        if (empty($context)) {
+            error_log('Wordsurf DEBUG: inject_post_context returning early - context is empty');
+            return $prompt;
+        }
+        
+        $context_section = "\n\n# CURRENT CONTEXT (For Your Reference Only - Do Not Echo This Information)\n\n";
+        
+        // Add site context
+        if (!empty($context['site_name'])) {
+            $context_section .= "Site: " . $context['site_name'];
+            if (!empty($context['site_url'])) {
+                $context_section .= " (" . $context['site_url'] . ")";
+            }
+            $context_section .= "\n";
+        }
+        
+        // Add user context
+        if (!empty($context['current_user'])) {
+            $context_section .= "Current User: " . $context['current_user'] . "\n";
+        }
+        
+        // Add post context if available
+        if (!empty($context['current_post'])) {
+            $post = $context['current_post'];
+            
+            $context_section .= "\nCURRENT POST DETAILS:\n";
+            
+            if (!empty($post['title'])) {
+                $context_section .= "Title: " . $post['title'] . "\n";
+            }
+            
+            if (!empty($post['id'])) {
+                $context_section .= "ID: " . $post['id'] . "\n";
+            }
+            
+            if (!empty($post['type'])) {
+                $context_section .= "Type: " . $post['type'] . "\n";
+            }
+            
+            if (!empty($post['status'])) {
+                $context_section .= "Status: " . $post['status'] . "\n";
+            }
+            
+            if (!empty($post['author'])) {
+                $context_section .= "Author: " . $post['author'] . "\n";
+            }
+            
+            if (!empty($post['date'])) {
+                $context_section .= "Date: " . $post['date'] . "\n";
+            }
+            
+            if (!empty($post['categories']) && is_array($post['categories'])) {
+                $context_section .= "Categories: " . implode(', ', $post['categories']) . "\n";
+            }
+            
+            if (!empty($post['tags']) && is_array($post['tags'])) {
+                $context_section .= "Tags: " . implode(', ', $post['tags']) . "\n";
+            }
+            
+            if (!empty($post['excerpt'])) {
+                $context_section .= "Excerpt: " . $post['excerpt'] . "\n";
+            }
+            
+            if (!empty($post['content'])) {
+                $context_section .= "\nCURRENT POST CONTENT:\n" . $post['content'] . "\n";
+            }
+            
+            $context_section .= "\nIMPORTANT: This context is provided for your reference only. When the user refers to 'this post', 'the current post', or 'the post', they are referring to the post details above. Do NOT repeat this context information back to the user unless they specifically ask for post details. Work with the content naturally and respond to their requests directly.";
+        }
+        
+        return $prompt . $context_section;
     }
     
     /**
@@ -42,6 +129,8 @@ class Wordsurf_System_Prompt {
             "- Use when you need to modify existing text, paragraphs, or sections\n" .
             "- Use for surgical changes like fixing typos, improving sentences, or updating specific parts\n" .
             "- The tool will search for the specified text and replace it with your new content\n" .
+            "- CRITICAL: NEVER modify URLs, links, images, or embeds unless specifically asked\n" .
+            "- PRESERVE all HTML attributes, href values, src values, and link structures\n" .
             "- This is the PRIMARY tool for making content changes",
             ['priority' => 1, 'category' => 'content_editing']
         );
@@ -165,16 +254,15 @@ HOWEVER: Keep your planning messages CONCISE. Describe your approach without quo
         // Use user's system prompt if provided, otherwise fall back to Wordsurf's base prompt
         $base_prompt = !empty($user_system_prompt) ? $user_system_prompt : self::get_base_prompt();
         
-        // Build context information
-        $context = [
-            'post_id' => $post_context['post_id'] ?? '',
-            'post_title' => $post_context['post_title'] ?? '',
-            'post_type' => $post_context['post_type'] ?? '',
-            'post_status' => $post_context['post_status'] ?? ''
-        ];
+        // Pass the original context structure (don't flatten it)
+        // The filter expects the nested structure with current_post
+        $context = $post_context;
+        
+        // Debug: Log the context being passed to the prompt builder
+        error_log('Wordsurf DEBUG: Context passed to build_modular_system_prompt: ' . json_encode($context));
         
         // Use modular prompt builder with Wordsurf-specific settings
-        return AI_HTTP_Prompt_Manager::build_modular_system_prompt(
+        $final_prompt = AI_HTTP_Prompt_Manager::build_modular_system_prompt(
             $base_prompt,
             $context,
             [
@@ -184,6 +272,12 @@ HOWEVER: Keep your planning messages CONCISE. Describe your approach without quo
                 'sections' => []
             ]
         );
+        
+        // Debug: Log the final prompt being sent
+        error_log('Wordsurf DEBUG: Final system prompt length: ' . strlen($final_prompt) . ' characters');
+        error_log('Wordsurf DEBUG: Final system prompt preview: ' . substr($final_prompt, 0, 500) . '...');
+        
+        return $final_prompt;
     }
 }
 

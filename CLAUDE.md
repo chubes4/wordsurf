@@ -190,3 +190,7 @@ This ensures changes are properly tracked in both repositories and the original 
 4. Tool Manager automatically discovers and registers new tools
 
 **Debugging**: Use `error_log('Wordsurf DEBUG: message')` for debug logging throughout the system.
+
+## Provider Agnostic Design
+
+- The plugin is provider agnostic and the AI HTTP Client handles all provider-specific conversion. The plugin is ONLY responsible for what is happening on the WordPress site.

@@ -58,8 +58,8 @@ class Wordsurf_Agent_Core {
         $this->context_manager = new Wordsurf_Context_Manager();
         $this->tool_manager    = new Wordsurf_Tool_Manager();
         
-        // Register tools with AI HTTP Client library for proper "round plug" integration
-        $this->tool_manager->register_tools_with_library();
+        // Tools are now registered globally at plugin initialization
+        // No need to register per-instance
         
         // Configure AI HTTP Client with WordPress settings
         $options_manager = new AI_HTTP_Options_Manager();
@@ -140,12 +140,11 @@ class Wordsurf_Agent_Core {
             Wordsurf_Post_Context_Helper::set_current_post_id($post_id);
         }
 
-        // Build and prepend the system prompt for the first turn.
+        // Build system prompt using AI HTTP Client's PromptManager
         // Note: post_id is sent for context setup since get_the_ID() doesn't work in AJAX context
         $context = $this->context_manager->get_context($post_id);
         $available_tools = $this->tool_manager->get_tools();
-        $prompt_content = $this->system_prompt->build_prompt($context, $available_tools);
-        array_unshift($this->message_history, ['role' => 'system', 'content' => $prompt_content]);
+        $system_prompt = $this->system_prompt->build_prompt($context, $available_tools);
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
 
@@ -158,12 +157,12 @@ class Wordsurf_Agent_Core {
             throw new Exception("No model configured for provider: {$selected_provider}");
         }
 
-        // Create standardized request - let library handle provider-specific formatting
+        // Create standardized request using AI HTTP Client's PromptManager
         $request = [
-            'messages' => $this->message_history, // Pass raw messages to library
+            'messages' => $this->message_history, // User messages only
+            'system_instruction' => $system_prompt, // System prompt handled properly
             'tools' => $tool_schemas,
             'model' => $provider_settings['model'], // Include model from provider config
-            'max_tokens' => 1000,
         ];
 
         // Library handles provider selection, model selection, and all provider-specific logic

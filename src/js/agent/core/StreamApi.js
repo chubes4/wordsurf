@@ -26,6 +26,20 @@ export function streamChatMessage(messages, postId = null, onEvent, onComplete, 
     eventSource.onmessage = function(event) {
         console.log('🚀 DEFAULT MESSAGE EVENT:', event.type, event.data);
         
+        // Handle SSE termination marker
+        if (event.data === '[DONE]') {
+            console.log('StreamApi: Received [DONE] marker, stream completed');
+            hasReceivedCompletion = true;
+            onEvent({ type: 'stream_end', data: { status: 'completed' } });
+            if (!hasToolCalls) {
+                console.log('StreamApi: Stream completed, no tools detected, closing immediately');
+                isConnectionClosed = true;
+                eventSource.close();
+                if (onComplete) onComplete();
+            }
+            return;
+        }
+        
         try {
             const data = JSON.parse(event.data);
             
@@ -171,13 +185,7 @@ export function streamChatMessage(messages, postId = null, onEvent, onComplete, 
         }
     });
     
-    // Add a generic message handler to catch any events we're not specifically listening for
-    eventSource.addEventListener('message', (event) => {
-        // Only log if it's not one of our expected events
-        if (!event.type.startsWith('response.')) {
-            console.log('StreamApi: Received unexpected message event:', event);
-        }
-    });
+    // Note: Universal format messages are handled by eventSource.onmessage above
     
     // The browser dispatches an error event when the connection is closed by the server.
     // We can often ignore this as 'response.completed' is our real signal.

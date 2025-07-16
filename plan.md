@@ -1,84 +1,132 @@
-# AI HTTP Client Migration Completion Plan
+# Wordsurf Development Plan
 
-## Overview
-Complete the migration from legacy OpenAI-specific implementation to the ai-http-client library for full multi-provider support.
+## Critical Architecture Issue Identified 🚨
 
-## High Priority Tasks
+### Root Problem
+The AI HTTP Client library has a **fundamental architectural flaw** from day one:
+- Providers are "smart" components doing API + normalization + streaming + tools
+- Should be "dumb" API clients with centralized normalization
+- This violates Single Responsibility Principle and causes debugging nightmares
 
-### 1. Fix Legacy Provider Option Detection
-- **File**: `includes/agent/core/class-agent-core.php:258`
-- **Issue**: Still uses `get_option('wordsurf_ai_provider', 'openai')`
-- **Solution**: Replace with `AI_HTTP_Options_Manager::get_selected_provider()`
-- **Impact**: Ensures proper provider detection across all supported AI providers
+### Current Status
+- Tool execution failing with "Invalid arguments for tool: edit_post"
+- No diff previews appearing (result.preview = undefined)
+- Architecture makes debugging nearly impossible
+- 3000+ lines of duplicated logic across 5 providers
 
-### 2. Replace OpenAI-Specific Tool Extraction
-- **File**: `includes/agent/core/class-agent-core.php:305`
-- **Issue**: Direct call to `AI_HTTP_OpenAI_Streaming_Module::extract_tool_calls()`
-- **Solution**: Use provider-agnostic extraction method from ai-http-client
-- **Impact**: Enables tool calling to work with all providers, not just OpenAI
+### Clean Slate Refactor Required
+**Target Architecture**:
+```
+WordPress Plugin (unchanged - uses standard format)
+    ↓
+AI HTTP Client Library (complete rebuild)
+├── providers/openai.php (30 lines - dumb API client)
+├── providers/gemini.php (30 lines - dumb API client)  
+└── providers/normalizers/
+    ├── RequestNormalizer.php (switch/case all providers)
+    ├── ResponseNormalizer.php (switch/case all providers)
+    └── StreamNormalizer.php (switch/case all providers)
+```
 
-## Medium Priority Tasks
+## Pre-Refactor Status (Bachelor Party Break)
 
-### 3. Fix JavaScript Parameter Naming
-- **File**: `src/js/agent/core/ChatStreamSession.js:26`
-- **Issue**: Parameter named `openaiMessages` 
-- **Solution**: Rename to `messages` for provider neutrality
-- **Impact**: Frontend API becomes provider-agnostic
+### What We Fixed
+- ✅ Removed fake tool results from all provider StreamingModules
+- ✅ Identified architectural root cause
+- ✅ Current system streams properly but tool execution fails
 
-### 4. Test Multi-Provider Functionality
-- **Goal**: Verify migration works with different AI providers
-- **Tasks**:
-  - Test with OpenAI (baseline)
-  - Test with Anthropic Claude
-  - Test with other supported providers
-  - Verify tool calling works across providers
-  - Check streaming functionality
+### Current Issues (Post-Refactor)
+- Tool execution: "Invalid arguments for tool: edit_post"  
+- No diff previews: `result.preview = undefined`
+- Frontend expects proper diff data structure but tool execution failing
 
-## Low Priority Tasks
+### Architecture Analysis Complete
+- **Problem**: 3000+ lines of duplicated provider logic
+- **Solution**: Clean slate with dumb providers + universal normalizers
+- **Benefit**: Single responsibility, easier debugging, cleaner codebase
 
-### 5. Clean Up Deprecated Code
-- **File**: `includes/api/class-api-base.php`
-- **Action**: Remove if no longer used, or mark clearly as deprecated
-- **Impact**: Reduces codebase confusion and maintenance burden
+## Post-Bachelor Party: Clean Slate Refactor Plan
 
-### 6. Update Documentation
-- **File**: `docs/project-architecture.md:85`
-- **Issue**: References OpenAI-specific Responses API
-- **Solution**: Update to reflect multi-provider architecture
-- **Impact**: Documentation accuracy for future developers
+### Phase 1: Architecture Rebuild (1 week)
+1. **Nuke existing provider directories** (OpenAI/, Gemini/, etc.)
+2. **Create dumb API clients** (providers/openai.php, providers/gemini.php)
+3. **Build universal normalizers** with switch/case logic:
+   - `providers/normalizers/RequestNormalizer.php`
+   - `providers/normalizers/ResponseNormalizer.php` 
+   - `providers/normalizers/StreamNormalizer.php`
+4. **Test with Gemini first**, then add other providers
 
-### 7. Update CLAUDE.md
-- **Action**: Document completed migration and add guidelines
-- **Content**: Add section about ensuring provider-agnostic development
-- **Impact**: Future development maintains provider neutrality
+### Phase 2: WordPress Integration (2-3 days)
+1. **Update main AI_HTTP_Client class** to use new architecture
+2. **Test tool execution** with clean request/response flow
+3. **Verify diff previews work** with proper data structure
+4. **Test all providers** work with new system
 
-## Validation Criteria
+### Benefits of Clean Slate
+- **Debugging**: Clear separation of API vs normalization issues
+- **Maintenance**: Bug fixes in one place, not 5 places
+- **Adding providers**: Just add API client + normalizer cases
+- **Code quality**: Single responsibility principle followed
+- **Performance**: Less duplicate logic, cleaner execution flow
 
-### Migration Complete When:
-- [ ] No direct references to specific provider options
-- [ ] All tool extraction uses provider-agnostic methods
-- [ ] JavaScript APIs use provider-neutral naming
-- [ ] Multi-provider testing passes
-- [ ] Documentation reflects current architecture
-- [ ] No deprecated API classes remain
+### Salvageable Code
+- ✅ WordPress plugin (unchanged - uses standard format)
+- ✅ Existing switch/case patterns from GenericStreamNormalizer
+- ✅ Basic validation/sanitization logic
+- ✅ Tool execution pipeline (WordPress side)
 
-### Success Metrics:
-- Plugin works with OpenAI, Anthropic, and other providers
-- Tool calling functions across all providers
-- Streaming works regardless of provider choice
-- No provider-specific code outside ai-http-client library
-- Frontend maintains provider-agnostic interface
+## Refactor Plan (If Decided Later)
 
-## Technical Notes
+### Goal: Clean 3-Layer Architecture
+1. **API Layer**: Providers only do raw API communication
+2. **Standardization Layer**: Universal normalizers handle all format conversion  
+3. **WordPress Layer**: Handle plugin-specific logic and tool execution
 
-### Provider-Agnostic Patterns:
-- Use `AI_HTTP_Options_Manager` for configuration
-- Use ai-http-client's unified tool extraction
-- Maintain provider-neutral naming conventions
-- Delegate provider-specific logic to ai-http-client library
+### Key Changes:
+- Move all `extract_tool_calls` logic to single Universal normalizer
+- Move all tool processing logic to single Universal processor  
+- Strip providers down to ~50 lines of pure API communication
+- Centralize WordPress-specific logic
 
-### Testing Approach:
-- Test each provider individually
-- Verify tool calling with complex multi-step scenarios
-- Check streaming performance across providers
-- Validate error handling works uniformly
+### Implementation Strategy:
+- Create universal components alongside existing ones
+- Migrate one provider as test case
+- Apply pattern to remaining providers
+- Remove old components after validation
+
+### File Structure Target:
+```
+lib/ai-http-client/src/
+├── Providers/
+│   ├── Gemini/Provider.php (50 lines - API only)
+│   ├── OpenAI/Provider.php (50 lines - API only)
+│   └── ... (all slim)
+├── Utils/
+│   └── Normalizers/
+│       └── UniversalNormalizer.php (handles all formats)
+└── WordPress/
+    └── ToolProcessor.php (WordPress-specific logic)
+```
+
+## Success Criteria
+
+### For Minimal Fix:
+- [ ] Tool calls execute after streaming completes
+- [ ] Diff previews appear in WordPress editor
+- [ ] Tool execution works across all providers
+- [ ] System is stable and debuggable
+
+### For Full Refactor (if pursued):
+- [ ] Tool processing logic exists in exactly 1 place  
+- [ ] Each provider under 100 lines
+- [ ] Bug fixes only needed in 1 location
+- [ ] Clear debugging path through 3 layers
+
+## Next Steps
+
+1. **Implement Path A (minimal fix)**
+2. **Get fully working system**  
+3. **Use system in production for evaluation**
+4. **Reassess refactor necessity after real usage**
+
+The goal is working software first, perfect architecture second.
