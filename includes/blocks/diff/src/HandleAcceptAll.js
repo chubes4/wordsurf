@@ -25,7 +25,6 @@ export class HandleAcceptAll {
         // BUT suppress chat continuation until all are processed
         for (let i = 0; i < diffBlocks.length; i++) {
             const diffBlock = diffBlocks[i];
-            const isLastBlock = i === diffBlocks.length - 1;
             
             try {
                 // Store the last tool call ID for continuation
@@ -36,7 +35,7 @@ export class HandleAcceptAll {
                     diffBlock.attributes,
                     diffBlock.clientId,
                     currentPostId,
-                    !isLastBlock // suppressContinuation = true for all but last
+                    true // suppressContinuation = true for all blocks in bulk operation
                 );
                 console.log('HandleAcceptAll: Accepted diff block', diffBlock.attributes.diffId);
             } catch (error) {
@@ -76,7 +75,6 @@ export class HandleAcceptAll {
         // BUT suppress chat continuation until all are processed
         for (let i = 0; i < diffBlocks.length; i++) {
             const diffBlock = diffBlocks[i];
-            const isLastBlock = i === diffBlocks.length - 1;
             
             try {
                 // Store the last tool call ID for continuation
@@ -87,7 +85,7 @@ export class HandleAcceptAll {
                     diffBlock.attributes,
                     diffBlock.clientId,
                     currentPostId,
-                    !isLastBlock // suppressContinuation = true for all but last
+                    true // suppressContinuation = true for all blocks in bulk operation
                 );
                 console.log('HandleAcceptAll: Rejected diff block', diffBlock.attributes.diffId);
             } catch (error) {

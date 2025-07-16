@@ -114,7 +114,12 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 **Event-Driven Continuation**: After tool acceptance/rejection, chat continuation is triggered via custom DOM events (`wordsurf-continue-chat`). This enables seamless conversation flow after user decisions.
 
-**State Management**: The system maintains separate diff context and chat state to prevent UI conflicts during tool acceptance flows.
+**AI HTTP Client Integration**: The ai-http-client library's `ContinuationManager` handles all continuation logic with provider-specific handlers:
+- OpenAI: Response ID tracking with automatic extraction from streaming responses
+- Other providers: Conversation history-based continuation
+- Automatic state storage in WordPress transients (5-minute expiry)
+
+**State Management**: The system maintains separate diff context and chat state to prevent UI conflicts during tool acceptance flows. Continuation state is stored per-user using WordPress transients for persistence across requests.
 
 **EventSource Management**: Multiple EventSource connections are prevented through proper state checking in `ChatHandler` to avoid "Store already registered" errors.
 
