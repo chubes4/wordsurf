@@ -37,12 +37,13 @@ export const ToolStatus = ({ name, args, result, status }) => {
  * Chat Message Component
  */
 export const ChatMessage = ({ message }) => {
-    if (message.type === 'tool') {
+    // Handle tool calls (assistant messages with tool_calls)
+    if (message.tool_calls && message.tool_calls.length > 0) {
         return (
-            <div className={`chat-message ${message.author}`}>
+            <div className={`chat-message ${message.role}`}>
                 <ToolStatus 
-                    name={message.tool_name}
-                    args={message.tool_args}
+                    name={message.tool_calls[0].function.name}
+                    args={message.tool_calls[0].function.arguments}
                     result={message.result}
                     status={message.result ? 'completed' : 'in_progress'}
                 />
@@ -50,9 +51,10 @@ export const ChatMessage = ({ message }) => {
         );
     }
 
-    // Default to text message
+    // Default to text message - map role to CSS class
+    const cssClass = message.role === 'user' ? 'user' : 'agent';
     return (
-        <div className={`chat-message ${message.author}`}>
+        <div className={`chat-message ${cssClass}`}>
             <div className="chat-bubble">
                 {message.content}
                 {message.isStreaming && (

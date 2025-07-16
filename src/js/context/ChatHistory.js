@@ -43,8 +43,8 @@ export class ChatHistory {
    * Get messages formatted for UI display (excludes tool calls/results)
    */
   getUIMessages() {
-    // With the new unified message format, we just filter out non-UI messages.
-    return this.messages.filter(msg => msg.type === 'text' || msg.type === 'tool');
+    // With the standardized message format, all messages are UI-displayable
+    return this.messages;
   }
 
   /**
