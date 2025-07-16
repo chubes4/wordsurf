@@ -16,7 +16,7 @@ npm run lint:js      # JavaScript linting
 npm run lint:css     # CSS linting
 
 # Testing
-npm run test:unit    # Unit tests
+npm run test:unit-js # Unit tests
 npm run test:e2e     # End-to-end tests
 
 # Other utilities
