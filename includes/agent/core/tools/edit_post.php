@@ -160,7 +160,6 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         // Return diff data for user approval with target block information
         return [
             'success' => true,
-            'preview' => true,
             'message' => "Successfully prepared changes for post {$post_id}. Found " . count($target_blocks_info) . " blocks to modify.",
             'post_id' => $post_id,
             'edit_type' => $edit_type,

@@ -208,7 +208,6 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
         // Return diff data for user approval with diff block content
         return [
             'success' => true,
-            'preview' => true,
             'message' => "Successfully prepared to insert new content {$insertion_point}. The user will see a diff block with the proposed insertion that can be accepted or rejected.",
             'post_id' => $post_id,
             'edit_type' => $content_type,

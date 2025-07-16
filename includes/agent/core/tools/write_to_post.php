@@ -155,7 +155,6 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
         ];
         return [
             'success' => true,
-            'preview' => true,
             'message' => "Successfully prepared to replace entire content for post {$post_id}. The entire post will be wrapped in a diff block for review.",
             'post_id' => $post_id,
             'edit_type' => 'content',
