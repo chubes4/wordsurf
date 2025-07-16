@@ -113,11 +113,12 @@ class Wordsurf_Agent_Core {
      */
     public function handle_chat_request($request_data) {
         $messages = $request_data['messages'] ?? [];
+        $post_id = $request_data['post_id'] ?? null;
         
-        // Note: post_id parameter removed - tools get current post from WordPress context for MVP simplicity
+        // Note: post_id is sent for context setup since get_the_ID() doesn't work in AJAX context
         
         // Start the first turn. The underlying cURL call is blocking and will complete before moving on.
-        $full_response = $this->start_chat_turn($messages);
+        $full_response = $this->start_chat_turn($messages, $post_id);
 
         // Tool processing and result sending is now handled in start_chat_turn()
         // No additional processing needed here
@@ -128,15 +129,21 @@ class Wordsurf_Agent_Core {
      * It initiates the stream and returns the full response body for later processing.
      *
      * @param array $messages The full message history from the frontend.
+     * @param int|null $post_id The ID of the current post (for context setup in AJAX)
      * @return string The full, raw response from the OpenAI API.
      */
-    private function start_chat_turn($messages) {
+    private function start_chat_turn($messages, $post_id = null) {
         $this->message_history = $messages ?: [];
         $this->pending_tool_calls = []; // Clear any previous tool calls
 
+        // Set current post ID in helper for AJAX context
+        if ($post_id) {
+            Wordsurf_Post_Context_Helper::set_current_post_id($post_id);
+        }
+
         // Build and prepend the system prompt for the first turn.
-        // Note: context manager will get current post from WordPress context for MVP simplicity
-        $context = $this->context_manager->get_context();
+        // Note: post_id is sent for context setup since get_the_ID() doesn't work in AJAX context
+        $context = $this->context_manager->get_context($post_id);
         $available_tools = $this->tool_manager->get_tools();
         $prompt_content = $this->system_prompt->build_prompt($context, $available_tools);
         array_unshift($this->message_history, ['role' => 'system', 'content' => $prompt_content]);

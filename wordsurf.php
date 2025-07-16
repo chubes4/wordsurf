@@ -149,6 +149,7 @@ final class Wordsurf {
             require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-system-prompt.php';
             require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/class-tool-manager.php';
         require_once WORDSURF_PLUGIN_DIR . 'includes/agent/context/class-context-manager.php';
+        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/context/class-post-context-helper.php';
 
         // API
         require_once WORDSURF_PLUGIN_DIR . 'includes/api/class-rest-api.php';

@@ -28,19 +28,12 @@ class Wordsurf_Context_Manager {
             'site_url' => get_site_url(),
         );
         
-        // Get current post ID from WordPress context (MVP: current post only)
-        if (!$post_id) {
-            $post_id = get_the_ID();
-            if (!$post_id) {
-                // Fallback for admin context
-                global $post;
-                $post_id = $post ? $post->ID : null;
-            }
-        }
+        // Use Post Context Helper for robust post ID detection across all contexts
+        $resolved_post_id = Wordsurf_Post_Context_Helper::get_post_id($post_id);
         
         // Add post context if we have a post ID
-        if ($post_id) {
-            $context['current_post'] = $this->get_post_context($post_id);
+        if ($resolved_post_id) {
+            $context['current_post'] = $this->get_post_context($resolved_post_id);
         }
         
         // Merge any additional context

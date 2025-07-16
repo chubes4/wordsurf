@@ -2,11 +2,31 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Overview
+
+Wordsurf is an agentic WordPress plugin that integrates AI agents directly into the WordPress editor, enabling intelligent content creation and management through natural language interactions. The plugin provides a powerful AI-powered content assistant that can read, analyze, and manipulate WordPress content in real-time through a sophisticated tool system with diff preview capabilities.
+
+## Requirements
+
+- WordPress 5.0+
+- PHP 7.4+
+- Node.js 14+ (for development)
+- AI provider API key (OpenAI, Anthropic, Gemini, Grok, or OpenRouter)
+
+## Installation & Setup
+
+The plugin is installed as a standard WordPress plugin in `/wp-content/plugins/wordsurf/`. Key setup steps:
+
+1. Build assets with `npm install && npm run build`
+2. Activate plugin in WordPress admin
+3. Configure AI provider settings in WordPress Admin → Settings → Wordsurf
+4. Plugin integrates into WordPress editor sidebar as "Wordsurf" panel
+
 ## Build Commands
 
 ```bash
 # Development mode (watch for changes)
-npm run start
+npm run dev
 
 # Production build
 npm run build
@@ -16,12 +36,15 @@ npm run lint:js      # JavaScript linting
 npm run lint:css     # CSS linting
 
 # Testing
-npm run test:unit-js # Unit tests
+npm run test:unit    # Unit tests
 npm run test:e2e     # End-to-end tests
 
 # Other utilities
-npm run format       # Format code
-npm run plugin-zip   # Create distribution zip
+npm run format           # Format code
+npm run plugin-zip       # Create distribution zip
+npm run lint:md:docs     # Lint markdown documentation
+npm run lint:pkg-json    # Lint package.json
+npm run packages-update  # Update WordPress dependencies
 ```
 
 ## Architecture Overview
@@ -41,7 +64,7 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 - `define_parameters()` - Declarative parameter definition with required flags
 - `execute($context)` - Tool logic with context from current post/conversation
 
-**Tool Schema Generation**: Base class automatically generates OpenAI function calling schemas from parameter definitions with proper strict mode handling.
+**Tool Schema Generation**: Base class automatically generates function calling schemas from parameter definitions with proper strict mode handling for all supported AI providers.
 
 **Tool Discovery**: `Wordsurf_Tool_Manager::load_tools()` automatically discovers and registers tools from `includes/agent/core/tools/`.
 
@@ -69,7 +92,7 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 ### Message Flow Architecture
 
-**OpenAI Message Format**: System maintains OpenAI-compatible message history with proper tool message handling. Backend sanitizes messages for API compatibility while frontend maintains UI-friendly message display.
+**Standardized Message Format**: System maintains provider-agnostic message history with proper tool message handling. Backend sanitizes messages for API compatibility while frontend maintains UI-friendly message display.
 
 **Context Management**: System prompt is dynamically generated with current post context and available tool descriptions for each request.
 
@@ -111,7 +134,7 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 ## AI HTTP Client Integration
 
-**Current Implementation**: The plugin uses the `ai-http-client` library (located at `lib/ai-http-client/`) for AI API communication. This provides:
+**Current Implementation**: The plugin uses the `ai-http-client` library (located at `lib/ai-http-client/`) integrated via the main plugin file. The `Wordsurf_Agent_Core` class instantiates `AI_HTTP_Client` and uses methods like `send_streaming_request()` and `continue_with_tool_results()`. This provides:
 
 - **Multi-Provider Support**: Support for OpenAI, Anthropic, Gemini, Grok, and OpenRouter through unified interface
 - **Centralized AI Logic**: Standardized request/response handling across different AI providers
@@ -120,12 +143,15 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 - **Tool Calling**: Native function calling support for all compatible providers
 
 **Provider Configuration**:
-- Provider selection via `wordsurf_ai_provider` WordPress option
-- Model selection via `wordsurf_ai_model` WordPress option  
+- Configuration managed through ai-http-client's `AI_HTTP_Options_Manager` class
+- Primary options: `ai_http_client_selected_provider` and `ai_http_client_providers` (nested array structure)
+- Settings UI rendered via `AI_HTTP_ProviderManager_Component` in admin settings
 - Each provider has dedicated normalizers for request/response formatting
 - Streaming handled via provider-specific streaming modules
 
-**Response Continuation Pattern**: Uses provider-native continuation APIs for tool result processing, enabling seamless multi-turn conversations with tool interactions.
+**Tool Integration**: WordPress tools are registered with the ai-http-client library via `Wordsurf_Tool_Manager::register_tools_with_library()` using WordPress filter system. Tool execution flows through `AI_HTTP_Tool_Executor::execute_tool()`.
+
+**Response Continuation Pattern**: Uses Responses API continuation with response ID tracking via `continue_with_tool_results()` for seamless multi-turn conversations with tool interactions.
 
 ## Development Guidelines
 

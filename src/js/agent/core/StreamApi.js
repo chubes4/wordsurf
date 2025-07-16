@@ -8,10 +8,11 @@ export function streamChatMessage(messages, postId = null, onEvent, onComplete, 
     // We must still use our AJAX endpoint, but we'll trick it into thinking it's a POST
     // by sending data in the query string and checking for it in PHP. This is a
     // common workaround for streaming via WordPress AJAX.
-    // Note: postId parameter removed - tools get current post from WordPress context
+    // Note: postId is sent for context setup since get_the_ID() doesn't work in AJAX context
     const params = new URLSearchParams({
         action: 'wordsurf_stream_chat',
         messages: JSON.stringify(messages),
+        post_id: postId || '', // Send for context setup
         context_window: JSON.stringify({}), // For future use
         nonce: window.wordsurfData?.nonce || ''
     });

@@ -27,7 +27,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
      * Get the tool description for the AI
      */
     public function get_description() {
-        return 'Edit specific parts of the current WordPress post using search and replace. Shows proposed changes that the user can accept or reject. Perfect for surgical edits like fixing typos, modifying sentences, or adding content to specific locations without affecting the rest of the post. Always works on the post currently being edited.';
+        return 'Edit specific parts of a WordPress post using search and replace. Shows proposed changes that the user can accept or reject. Perfect for surgical edits like fixing typos, modifying sentences, or adding content to specific locations without affecting the rest of the post. Can work on the current post or a specific post by ID.';
     }
     
     /**
@@ -37,6 +37,11 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
      */
     protected function define_parameters() {
         return [
+            'post_id' => [
+                'type' => 'integer',
+                'description' => 'The ID of the post to edit. If not provided, will use the current post being edited.',
+                'required' => false
+            ],
             'search_pattern' => [
                 'type' => 'string',
                 'description' => 'The text to search for in the post content',
@@ -70,13 +75,8 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         // Debug: Log the parameters being passed to edit_post tool
         error_log('Wordsurf DEBUG: edit_post tool called with parameters: ' . json_encode($context));
         
-        // Get current post ID from WordPress context (MVP: current post only)
-        $post_id = get_the_ID();
-        if (!$post_id) {
-            // Fallback for admin context
-            global $post;
-            $post_id = $post ? $post->ID : null;
-        }
+        // Use Post Context Helper for robust post ID detection
+        $post_id = Wordsurf_Post_Context_Helper::get_post_id($context['post_id'] ?? null);
         
         $search_pattern = $context['search_pattern'] ?? null;
         $replacement_text = $context['replacement_text'] ?? null;
@@ -90,7 +90,7 @@ class Wordsurf_EditPostTool extends Wordsurf_BaseTool {
         if (!$post_id || !$search_pattern || !$replacement_text) {
             return [
                 'success' => false,
-                'error' => 'Missing required parameters: search_pattern and replacement_text are required. Current post ID: ' . ($post_id ?: 'none')
+                'error' => 'Missing required parameters: search_pattern and replacement_text are required. Post ID: ' . ($post_id ?: 'none detected')
             ];
         }
         

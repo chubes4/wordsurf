@@ -27,7 +27,7 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
      * Get the tool description for the AI
      */
     public function get_description() {
-        return 'Replace the entire content of the current WordPress post with new content. Perfect for writing posts from scratch, complete rewrites, or starting over with a blank slate. Shows a full post preview that the user can accept or reject. Always works on the post currently being edited.';
+        return 'Replace the entire content of a WordPress post with new content. Perfect for writing posts from scratch, complete rewrites, or starting over with a blank slate. Shows a full post preview that the user can accept or reject. Can work on the current post or a specific post by ID.';
     }
     
     /**
@@ -37,6 +37,11 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
      */
     protected function define_parameters() {
         return [
+            'post_id' => [
+                'type' => 'integer',
+                'description' => 'The ID of the post to write content to. If not provided, will use the current post being edited.',
+                'required' => false
+            ],
             'content' => [
                 'type' => 'string',
                 'description' => 'The new content for the post (will be formatted with proper WordPress paragraph blocks)',
@@ -68,13 +73,8 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
         // Debug: Log the parameters
         error_log('Wordsurf DEBUG: write_to_post tool called with parameters: ' . json_encode($context));
         
-        // Get current post ID from WordPress context (MVP: current post only)
-        $post_id = get_the_ID();
-        if (!$post_id) {
-            // Fallback for admin context
-            global $post;
-            $post_id = $post ? $post->ID : null;
-        }
+        // Use Post Context Helper for robust post ID detection
+        $post_id = Wordsurf_Post_Context_Helper::get_post_id($context['post_id'] ?? null);
         
         $content = $context['content'] ?? null;
         $title = $context['title'] ?? null;
@@ -85,7 +85,7 @@ class Wordsurf_WriteToPostTool extends Wordsurf_BaseTool {
         if (!$post_id || !$content) {
             return [
                 'success' => false,
-                'error' => 'Missing required parameter: content is required. Current post ID: ' . ($post_id ?: 'none')
+                'error' => 'Missing required parameter: content is required. Post ID: ' . ($post_id ?: 'none detected')
             ];
         }
         

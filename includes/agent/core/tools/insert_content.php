@@ -27,7 +27,7 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
      * Get the tool description for the AI
      */
     public function get_description() {
-        return 'Insert new content into the current WordPress post at specific positions without modifying existing content. Perfect for adding new paragraphs, sections, or content blocks to the beginning, end, or middle of posts. Always works on the post currently being edited.';
+        return 'Insert new content into a WordPress post at specific positions without modifying existing content. Perfect for adding new paragraphs, sections, or content blocks to the beginning, end, or middle of posts. Can work on the current post or a specific post by ID.';
     }
     
     /**
@@ -37,6 +37,11 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
      */
     protected function define_parameters() {
         return [
+            'post_id' => [
+                'type' => 'integer',
+                'description' => 'The ID of the post to insert content into. If not provided, will use the current post being edited.',
+                'required' => false
+            ],
             'content' => [
                 'type' => 'string',
                 'description' => 'The new content to insert (will be wrapped in WordPress paragraph blocks automatically)',
@@ -71,13 +76,8 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
         // Debug: Log the parameters
         error_log('Wordsurf DEBUG: insert_content tool called with parameters: ' . json_encode($context));
         
-        // Get current post ID from WordPress context (MVP: current post only)
-        $post_id = get_the_ID();
-        if (!$post_id) {
-            // Fallback for admin context
-            global $post;
-            $post_id = $post ? $post->ID : null;
-        }
+        // Use Post Context Helper for robust post ID detection
+        $post_id = Wordsurf_Post_Context_Helper::get_post_id($context['post_id'] ?? null);
         
         $content = $context['content'] ?? null;
         $position = $context['position'] ?? 'end';
@@ -88,7 +88,7 @@ class Wordsurf_InsertContentTool extends Wordsurf_BaseTool {
         if (!$post_id || !$content) {
             return [
                 'success' => false,
-                'error' => 'Missing required parameter: content is required. Current post ID: ' . ($post_id ?: 'none')
+                'error' => 'Missing required parameter: content is required. Post ID: ' . ($post_id ?: 'none detected')
             ];
         }
         
