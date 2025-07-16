@@ -224,8 +224,8 @@ class Wordsurf_Chat_Handler {
             ob_end_clean();
         }
         
-        // Use Responses API continuation pattern instead of conversation history
-        $this->agent_core->continue_with_tool_results($tool_results, $response_id);
+        // Use library's provider-agnostic continuation method
+        $this->agent_core->continue_with_tool_results($tool_results);
         
         wp_die();
     }

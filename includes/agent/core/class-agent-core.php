@@ -149,79 +149,20 @@ class Wordsurf_Agent_Core {
         array_unshift($this->message_history, ['role' => 'system', 'content' => $prompt_content]);
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
-        
-        // Convert messages to Responses API format
-        $sanitized_messages = array_map(function($message) {
-            // Handle tool messages - convert to assistant messages since 'tool' role isn't supported
-            if ($message['role'] === 'tool') {
-                // Convert tool result to assistant message
-                return [
-                    'role' => 'assistant',
-                    'content' => $message['content']
-                ];
-            }
-            
-            // For user messages
-            if ($message['role'] === 'user') {
-                return [
-                    'role' => 'user',
-                    'content' => $message['content']
-                ];
-            }
-            
-            // For system messages
-            if ($message['role'] === 'system') {
-                return [
-                    'role' => 'system',
-                    'content' => $message['content']
-                ];
-            }
-            
-            // For assistant messages - remove tool_calls as they're not supported in Responses API input
-            if ($message['role'] === 'assistant') {
-                // If this is a tool call message, we'll skip it since the Responses API
-                // doesn't support tool_calls in the input format
-                if (isset($message['tool_calls'])) {
-                    // Skip tool call messages in input - they're handled differently in Responses API
-                    return null;
-                }
-                
-                return [
-                    'role' => 'assistant',
-                    'content' => $message['content'] ?? ''
-                ];
-            }
-            
-            // Default fallback
-            return [
-                'role' => $message['role'],
-                'content' => $message['content'] ?? ''
-            ];
-        }, $this->message_history);
-        
-        // Remove null entries (skipped tool call messages) and reindex
-        $sanitized_messages = array_values(array_filter($sanitized_messages, function($message) {
-            return $message !== null;
-        }));
-        
-        // Get provider and model from AI HTTP Client (the proper way)
-        $options_manager = new AI_HTTP_Options_Manager();
-        $provider = $options_manager->get_selected_provider();
-        $model = $options_manager->get_provider_setting($provider, 'model');
 
+        // Create standardized request - let library handle provider-specific formatting
         $request = [
-            'messages' => $sanitized_messages,
-            'model' => $model,
+            'messages' => $this->message_history, // Pass raw messages to library
             'tools' => $tool_schemas,
             'max_tokens' => 1000,
         ];
 
-        // The client streams raw chunks directly and returns the full response.
-        error_log('Wordsurf DEBUG: Making AI streaming request with provider: ' . $provider);
+        // Library handles provider selection, model selection, and all provider-specific logic
+        error_log('Wordsurf DEBUG: Making AI streaming request via library');
         
         // Stream the response with integrated tool processing
         try {
-            $full_response = $this->ai_client->send_streaming_request($request, $provider, [$this, 'handle_stream_completion']);
+            $full_response = $this->ai_client->send_streaming_request($request, null, [$this, 'handle_stream_completion']);
             error_log('Wordsurf DEBUG: Streaming request completed successfully');
         } catch (Exception $e) {
             error_log('Wordsurf DEBUG: Streaming request failed: ' . $e->getMessage());
@@ -369,6 +310,39 @@ class Wordsurf_Agent_Core {
         if (ob_get_level()) {
             ob_flush();
         }
+    }
+
+    /**
+     * Continue conversation with tool results - completely provider-agnostic
+     * Library handles all provider-specific continuation logic
+     *
+     * @param array $tool_results Array of tool results from user interactions
+     * @return string The full response from the continuation
+     */
+    public function continue_with_tool_results($tool_results) {
+        error_log('Wordsurf DEBUG: Starting tool result continuation via library');
+        
+        try {
+            // Use library's provider-agnostic continuation method
+            // Library handles: OpenAI response IDs vs Anthropic conversation rebuilding
+            $full_response = $this->ai_client->continue_with_tool_results($tool_results, null, [$this, 'handle_stream_completion']);
+            
+            error_log('Wordsurf DEBUG: Tool result continuation completed successfully');
+            return $full_response;
+            
+        } catch (Exception $e) {
+            error_log('Wordsurf DEBUG: Tool result continuation failed: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Get current response ID - delegates to library
+     *
+     * @return string|null The current response ID or null if not available
+     */
+    public function get_current_response_id() {
+        return $this->ai_client->get_last_response_id();
     }
 
     /**
