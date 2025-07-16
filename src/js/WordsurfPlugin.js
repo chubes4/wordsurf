@@ -9,6 +9,7 @@ import { useChatHandler } from './agent/core/ChatHandler';
 import { ChatHistory } from './context/ChatHistory';
 import { InlineDiffManager } from './editor/InlineDiffManager';
 import { ChatInterface } from './editor/UIComponents';
+import { diffTracker } from './editor/DiffTracker';
 import { HandleAcceptAll } from '../../includes/blocks/diff/src/HandleAcceptAll';
 import { FindDiffBlocks } from '../../includes/blocks/diff/src/FindDiffBlocks';
 
@@ -65,6 +66,13 @@ const WordsurfSidebar = () => {
     const handleDiffReceived = useCallback((diffData) => {
         console.log('WordsurfPlugin: Received diff data:', diffData);
         console.log('WordsurfPlugin: Has diff_block_content:', !!diffData.diff_block_content);
+        
+        // Initialize DiffTracker for new tool results
+        if (diffData.tool_call_id && diffData.diff_id) {
+            console.log('WordsurfPlugin: Initializing DiffTracker for tool:', diffData.tool_call_id);
+            diffTracker.startTracking(diffData.tool_call_id, [diffData.diff_id]);
+        }
+        
         setDiffContext(prev => ({
             ...prev,
             diffs: [...prev.diffs, diffData],

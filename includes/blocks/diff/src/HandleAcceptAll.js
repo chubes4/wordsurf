@@ -1,5 +1,6 @@
 import { DiffActions } from './DiffActions';
 import { FindDiffBlocks } from './FindDiffBlocks';
+import { diffTracker } from '../../../../src/js/editor/DiffTracker';
 
 /**
  * HandleAcceptAll - Clean bridge for bulk diff operations
@@ -18,19 +19,15 @@ export class HandleAcceptAll {
         
         console.log('HandleAcceptAll: Processing', diffBlocks.length, 'diff blocks');
         
-        let lastToolCallId = null;
-        let lastDiffId = null;
+        // Start bulk operation tracking
+        diffTracker.startBulkOperation();
         
         // Process each diff block using DiffActions.handleAccept
-        // BUT suppress chat continuation until all are processed
+        // Suppress individual continuation events during bulk operation
         for (let i = 0; i < diffBlocks.length; i++) {
             const diffBlock = diffBlocks[i];
             
             try {
-                // Store the last tool call ID for continuation
-                lastToolCallId = diffBlock.attributes.toolCallId;
-                lastDiffId = diffBlock.attributes.diffId;
-                
                 await DiffActions.handleAccept(
                     diffBlock.attributes,
                     diffBlock.clientId,
@@ -43,16 +40,8 @@ export class HandleAcceptAll {
             }
         }
         
-        // If we processed blocks and suppressed continuation, trigger it now
-        if (diffBlocks.length > 1 && lastToolCallId) {
-            DiffActions.triggerChatContinuation({
-                action: 'accepted',
-                toolCallId: lastToolCallId,
-                diffId: lastDiffId,
-                postId: currentPostId,
-                isAcceptAll: true
-            });
-        }
+        // End bulk operation - DiffTracker will trigger continuation if all diffs are resolved
+        diffTracker.endBulkOperation('accepted', currentPostId);
         
         return diffBlocks.length;
     }
@@ -68,19 +57,15 @@ export class HandleAcceptAll {
         
         console.log('HandleAcceptAll: Rejecting', diffBlocks.length, 'diff blocks');
         
-        let lastToolCallId = null;
-        let lastDiffId = null;
+        // Start bulk operation tracking
+        diffTracker.startBulkOperation();
         
         // Process each diff block using DiffActions.handleReject
-        // BUT suppress chat continuation until all are processed
+        // Suppress individual continuation events during bulk operation
         for (let i = 0; i < diffBlocks.length; i++) {
             const diffBlock = diffBlocks[i];
             
             try {
-                // Store the last tool call ID for continuation
-                lastToolCallId = diffBlock.attributes.toolCallId;
-                lastDiffId = diffBlock.attributes.diffId;
-                
                 await DiffActions.handleReject(
                     diffBlock.attributes,
                     diffBlock.clientId,
@@ -93,16 +78,8 @@ export class HandleAcceptAll {
             }
         }
         
-        // If we processed blocks and suppressed continuation, trigger it now
-        if (diffBlocks.length > 1 && lastToolCallId) {
-            DiffActions.triggerChatContinuation({
-                action: 'rejected',
-                toolCallId: lastToolCallId,
-                diffId: lastDiffId,
-                postId: currentPostId,
-                isAcceptAll: true
-            });
-        }
+        // End bulk operation - DiffTracker will trigger continuation if all diffs are resolved
+        diffTracker.endBulkOperation('rejected', currentPostId);
         
         return diffBlocks.length;
     }

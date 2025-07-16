@@ -1,5 +1,6 @@
 import { ContentUpdater } from './ContentUpdater';
 import { FindDiffBlocks } from './FindDiffBlocks';
+import { diffTracker } from '../../../../src/js/editor/DiffTracker';
 
 /**
  * DiffActions Module
@@ -36,16 +37,10 @@ export class DiffActions {
                 const remainingPendingBlocks = FindDiffBlocks.findDiffBlocksByDiffId(diffId)
                     .filter(block => block.attributes?.status === 'pending');
                 
-                // Only trigger chat continuation if no pending blocks remain for this diff ID
+                // Only notify DiffTracker if no pending blocks remain for this diff ID
                 if (remainingPendingBlocks.length === 0) {
-                    // Use the original tool call ID from the backend response if available
-                    const originalToolCallId = responseData.tool_result?.tool_call_id || toolCallId;
-                    DiffActions.triggerChatContinuation({
-                        action: 'accepted',
-                        toolCallId: originalToolCallId,
-                        diffId,
-                        postId: currentPostId
-                    });
+                    // Use DiffTracker to handle continuation logic
+                    diffTracker.markDiffResolved(diffId, 'accepted', currentPostId);
                 }
             }
 
@@ -81,16 +76,10 @@ export class DiffActions {
                 const remainingPendingBlocks = FindDiffBlocks.findDiffBlocksByDiffId(diffId)
                     .filter(block => block.attributes?.status === 'pending');
                 
-                // Only trigger chat continuation if no pending blocks remain for this diff ID
+                // Only notify DiffTracker if no pending blocks remain for this diff ID
                 if (remainingPendingBlocks.length === 0) {
-                    // Use the original tool call ID from the backend response if available
-                    const originalToolCallId = responseData.tool_result?.tool_call_id || toolCallId;
-                    DiffActions.triggerChatContinuation({
-                        action: 'rejected',
-                        toolCallId: originalToolCallId,
-                        diffId,
-                        postId: currentPostId
-                    });
+                    // Use DiffTracker to handle continuation logic
+                    diffTracker.markDiffResolved(diffId, 'rejected', currentPostId);
                 }
             }
 
