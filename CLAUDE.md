@@ -130,8 +130,21 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 ## Development Guidelines
 
 **AI HTTP Client Changes**: 
-- When changing AI HTTP Client, never make changes directly in the Wordsurf directory. Always make them in the original location and add to Wordsurf via git
+- **NEVER make changes directly in the original ai-http-client directory** (`/Users/chubes/Sites/ai-http-client`)
+- **ALWAYS make changes in the plugin's subtree copy** (`wordsurf/lib/ai-http-client/`)
 - The ai-http-client is included as a git subtree in `lib/ai-http-client/`
+- Use git subtree commands to sync changes back to the original repository:
+
+```bash
+# From the wordsurf plugin directory:
+# Push changes back to original ai-http-client repo
+git subtree push --prefix=lib/ai-http-client https://github.com/chubes4/ai-http-client.git main
+
+# Pull updates from original ai-http-client repo
+git subtree pull --prefix=lib/ai-http-client https://github.com/chubes4/ai-http-client.git main --squash
+```
+
+This ensures changes are properly tracked in both repositories and the original ai-http-client stays up-to-date for other plugins.
 
 **Available Tools**: Current tool implementations in `includes/agent/core/tools/`:
 - `read_post.php` - Read and analyze WordPress post content
