@@ -184,9 +184,11 @@ export class ChatStreamSession {
             this.accumulatedContent += this.streamingBuffer;
             
             if (this.streamingMessageIndex === -1) {
-                // Create new streaming message with accumulated content
-                this.chatHistory.addAssistantMessage(this.accumulatedContent, true);
-                this.streamingMessageIndex = this.chatHistory.getMessageCount() - 1;
+                // Only create message if there's actual content (not just whitespace)
+                if (this.accumulatedContent.trim().length > 0) {
+                    this.chatHistory.addAssistantMessage(this.accumulatedContent, true);
+                    this.streamingMessageIndex = this.chatHistory.getMessageCount() - 1;
+                }
             } else {
                 // Update existing streaming message with accumulated content
                 this.chatHistory.updateMessageContent(this.streamingMessageIndex, this.accumulatedContent);

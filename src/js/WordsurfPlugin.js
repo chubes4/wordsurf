@@ -145,6 +145,12 @@ const WordsurfSidebar = () => {
             ...prev,
             diffs: prev.diffs.filter(d => d.tool_call_id !== diffData.tool_call_id)
         }));
+        
+        // Dispatch continuation event to trigger next round of chat
+        console.log('WordsurfPlugin: Dispatching continuation event after diff acceptance');
+        document.dispatchEvent(new CustomEvent('wordsurf-continue-chat', {
+            detail: { trigger: 'diff-accepted', toolCallId: diffData.tool_call_id }
+        }));
     }, [chatHistory]);
     const handleRejectDiff = useCallback((diffData) => {
         // Note: DiffActions already handles backend communication via sendUserDecision
@@ -153,6 +159,12 @@ const WordsurfSidebar = () => {
         setDiffContext(prev => ({
             ...prev,
             diffs: prev.diffs.filter(d => d.tool_call_id !== diffData.tool_call_id)
+        }));
+        
+        // Dispatch continuation event to trigger next round of chat
+        console.log('WordsurfPlugin: Dispatching continuation event after diff rejection');
+        document.dispatchEvent(new CustomEvent('wordsurf-continue-chat', {
+            detail: { trigger: 'diff-rejected', toolCallId: diffData.tool_call_id }
         }));
     }, [chatHistory]);
     
