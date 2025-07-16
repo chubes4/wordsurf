@@ -104,9 +104,14 @@ export class ChatStreamSession {
                     tool_name,
                     result,
                     response_id,
-                    preview: result.preview,
+                    preview: result?.preview,
                     hasCallback: !!this.onDiffReceived
                 });
+                
+                // Debug: Log the full event data structure
+                console.log('ChatStreamSession: DEBUG - Full event.data structure:', event.data);
+                console.log('ChatStreamSession: DEBUG - result object keys:', result ? Object.keys(result) : 'result is null/undefined');
+                console.log('ChatStreamSession: DEBUG - result.preview value and type:', result?.preview, typeof result?.preview);
                 
                 this.chatHistory.updateToolCall(tool_call_id, {
                     success: result.success,
@@ -114,26 +119,32 @@ export class ChatStreamSession {
                     ...result
                 });
                 
-                if (result.preview === true && this.onDiffReceived) {
+                // The actual tool result is nested under result.result
+                const actualToolResult = result.result || result;
+                
+                if (actualToolResult.preview === true && this.onDiffReceived) {
                     console.log('ChatStreamSession: CALLING onDiffReceived with diff data');
                     console.log('ChatStreamSession: Full result data:', result);
+                    console.log('ChatStreamSession: Actual tool result:', actualToolResult);
                     this.onDiffReceived({
                         tool_call_id,
-                        original_content: result.original_content,
-                        new_content: result.new_content,
-                        search_pattern: result.search_pattern,
-                        replacement_text: result.replacement_text,
-                        diff_block_content: result.diff_block_content, // Legacy field for backward compatibility
-                        target_blocks: result.target_blocks, // New granular approach
-                        diff_id: result.diff_id,
+                        original_content: actualToolResult.original_content,
+                        new_content: actualToolResult.new_content,
+                        search_pattern: actualToolResult.search_pattern,
+                        replacement_text: actualToolResult.replacement_text,
+                        diff_block_content: actualToolResult.diff_block_content, // Legacy field for backward compatibility
+                        target_blocks: actualToolResult.target_blocks, // New granular approach
+                        diff_id: actualToolResult.diff_id,
                         tool_name,
-                        message: result.message
+                        message: actualToolResult.message
                     });
                 } else {
                     console.log('ChatStreamSession: NOT calling onDiffReceived because:', {
-                        hasPreview: result.preview === true,
+                        hasPreview: actualToolResult.preview === true,
                         hasCallback: !!this.onDiffReceived,
-                        preview: result.preview
+                        preview: actualToolResult.preview,
+                        resultKeys: result ? Object.keys(result) : 'no result',
+                        actualToolResultKeys: actualToolResult ? Object.keys(actualToolResult) : 'no actualToolResult'
                     });
                 }
                 break;

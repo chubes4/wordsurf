@@ -109,23 +109,40 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 **Diff Acceptance Pattern**: When implementing bulk operations (accept/reject all), suppress individual chat continuations and trigger a single continuation after all operations complete to prevent EventSource conflicts.
 
-## Planned Architecture Migration
+## AI HTTP Client Integration
 
-**AI HTTP Client Integration**: The plugin is planned to be migrated to use the `ai-http-client` library located at `/Users/chubes/Sites/ai-http-client` for AI API communication. This migration will:
+**Current Implementation**: The plugin uses the `ai-http-client` library (located at `lib/ai-http-client/`) for AI API communication. This provides:
 
-- **Centralize AI API Logic**: Replace the current direct OpenAI API calls with the standardized ai-http-client
-- **Improve Maintainability**: Use a shared, tested library for AI interactions across projects  
-- **Enhanced Features**: Leverage advanced features like request retries, rate limiting, and response caching
-- **Better Error Handling**: Benefit from comprehensive error handling and logging built into the client
-- **Multi-Provider Support**: Future support for different AI providers through the unified client interface
+- **Multi-Provider Support**: Support for OpenAI, Anthropic, Gemini, Grok, and OpenRouter through unified interface
+- **Centralized AI Logic**: Standardized request/response handling across different AI providers
+- **Enhanced Features**: Built-in request retries, rate limiting, and response caching
+- **Streaming Support**: Full streaming capabilities preserved with EventSource-based frontend
+- **Tool Calling**: Native function calling support for all compatible providers
 
-**Migration Considerations**:
-- The streaming architecture should be preserved during migration
-- Tool calling functionality must remain compatible with the current diff preview system
-- EventSource-based streaming may need adaptation to work with the new client
-- Chat continuation flow should be maintained for seamless user experience
+**Provider Configuration**:
+- Provider selection via `wordsurf_ai_provider` WordPress option
+- Model selection via `wordsurf_ai_model` WordPress option  
+- Each provider has dedicated normalizers for request/response formatting
+- Streaming handled via provider-specific streaming modules
+
+**Response Continuation Pattern**: Uses provider-native continuation APIs for tool result processing, enabling seamless multi-turn conversations with tool interactions.
 
 ## Development Guidelines
 
-- **AI HTTP Client Changes**: 
-  - When changing AI HTTP Client, never make changes directly in the Wordsurf directory. Always make them in the original location and add to Wordsurf via git
+**AI HTTP Client Changes**: 
+- When changing AI HTTP Client, never make changes directly in the Wordsurf directory. Always make them in the original location and add to Wordsurf via git
+- The ai-http-client is included as a git subtree in `lib/ai-http-client/`
+
+**Available Tools**: Current tool implementations in `includes/agent/core/tools/`:
+- `read_post.php` - Read and analyze WordPress post content
+- `write_to_post.php` - Update post content with diff preview
+- `edit_post.php` - Edit specific sections of post content
+- `insert_content.php` - Insert new content at specified locations
+
+**Tool Development Pattern**:
+1. Extend `Wordsurf_BaseTool` base class
+2. Implement `get_name()`, `get_description()`, `define_parameters()`, `execute()`
+3. Return results with `preview: true` for diff system integration
+4. Tool Manager automatically discovers and registers new tools
+
+**Debugging**: Use `error_log('Wordsurf DEBUG: message')` for debug logging throughout the system.

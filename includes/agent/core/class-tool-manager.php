@@ -139,11 +139,13 @@ class Wordsurf_Tool_Manager {
      * @return array A list of pending tool calls with their results.
      */
     public function process_and_execute_tool_calls($full_response) {
+        error_log('Wordsurf DEBUG (ToolManager): Processing tool calls from response');
         $pending_tool_calls = [];
         // SSE events are separated by double newlines.
         $event_blocks = explode("\n\n", trim($full_response));
+        error_log('Wordsurf DEBUG (ToolManager): Found ' . count($event_blocks) . ' event blocks');
     
-        foreach ($event_blocks as $block) {
+        foreach ($event_blocks as $block_index => $block) {
             $lines = explode("\n", $block);
             $event_type = null;
             $data_json = '';
@@ -158,13 +160,21 @@ class Wordsurf_Tool_Manager {
                 }
             }
             
+            error_log("Wordsurf DEBUG (ToolManager): Block {$block_index} - Event type: {$event_type}");
+            
             // We only care about the 'response.completed' event for finding the final, authoritative list of tool calls.
             if ($event_type === 'response.completed' && !empty($data_json)) {
+                error_log('Wordsurf DEBUG (ToolManager): Found response.completed event');
                 $decoded = json_decode($data_json, true);
+                error_log('Wordsurf DEBUG (ToolManager): Decoded response structure: ' . json_encode($decoded, JSON_PRETTY_PRINT));
                 
                 if (isset($decoded['response']['output'])) {
                     $output_items = $decoded['response']['output'];
-                    foreach ($output_items as $item) {
+                    error_log('Wordsurf DEBUG (ToolManager): Found ' . count($output_items) . ' output items');
+                    
+                    foreach ($output_items as $item_index => $item) {
+                        error_log("Wordsurf DEBUG (ToolManager): Output item {$item_index}: " . json_encode($item));
+                        
                         if (isset($item['type']) && $item['type'] === 'function_call' && isset($item['status']) && $item['status'] === 'completed') {
                             $tool_name = $item['name'];
                             // Arguments might not be present if the call fails, so provide a default.
@@ -187,9 +197,13 @@ class Wordsurf_Tool_Manager {
                     }
                     // We found and processed the 'response.completed' event, so we can stop searching.
                     break;
+                } else {
+                    error_log('Wordsurf DEBUG (ToolManager): No output found in response.completed event');
                 }
             }
         }
+        
+        error_log('Wordsurf DEBUG (ToolManager): Returning ' . count($pending_tool_calls) . ' pending tool calls');
         return $pending_tool_calls;
     }
 } 

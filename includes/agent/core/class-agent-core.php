@@ -276,6 +276,9 @@ class Wordsurf_Agent_Core {
      */
     public function handle_stream_completion($full_response) {
         error_log('Wordsurf DEBUG: Stream completed, processing tool calls');
+        error_log('Wordsurf DEBUG: Connection info - headers_sent: ' . (headers_sent() ? 'yes' : 'no') . ', output_buffering_level: ' . ob_get_level());
+        error_log('Wordsurf DEBUG: Full response length: ' . strlen($full_response) . ' bytes');
+        error_log('Wordsurf DEBUG: Full response preview: ' . substr($full_response, 0, 500) . '...');
         
         // Capture response ID from AI client if not already set
         if (!$this->current_response_id) {
@@ -290,7 +293,7 @@ class Wordsurf_Agent_Core {
         
         // Send tool results immediately while connection is still open
         if ($this->has_pending_tool_calls()) {
-            error_log('Wordsurf DEBUG: Tool calls detected, sending results during stream');
+            error_log('Wordsurf DEBUG: Tool calls detected, sending results during stream. Found ' . count($this->pending_tool_calls) . ' tool calls.');
             foreach ($this->pending_tool_calls as $call) {
                 $tool_result = [
                     'tool_call_id' => $call['tool_call_object']['call_id'],
@@ -298,8 +301,12 @@ class Wordsurf_Agent_Core {
                     'result' => $call['result'],
                     'response_id' => $this->current_response_id
                 ];
+                error_log('Wordsurf DEBUG: About to send tool_result event: ' . json_encode($tool_result));
                 $this->send_tool_result_to_frontend($tool_result);
+                error_log('Wordsurf DEBUG: Tool_result event sent successfully');
             }
+        } else {
+            error_log('Wordsurf DEBUG: No tool calls found to process');
         }
         
         error_log('Wordsurf DEBUG: Tool result processing completed');
