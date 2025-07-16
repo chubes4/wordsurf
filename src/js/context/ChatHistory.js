@@ -7,13 +7,9 @@
  * - Integration with ToolHistory for tool-specific tracking
  */
 
-import {
-  validateOpenAIMessages,
-  toOpenAIFormat,
-  toUIFormat,
-  createUserMessage,
-  createAssistantMessage
-} from '../editor/MessageFormatUtils';
+// Simple message creation helpers for AI HTTP Client library
+const createUserMessage = (content) => ({ role: 'user', content });
+const createAssistantMessage = (content) => ({ role: 'assistant', content });
 import { ToolHistory } from './ToolHistory';
 
 export class ChatHistory {
@@ -23,10 +19,10 @@ export class ChatHistory {
   }
 
   /**
-   * Validate initial messages are in OpenAI format
+   * Validate initial messages are in correct format
    */
   validateInitialMessages(messages) {
-    return validateOpenAIMessages(messages);
+    return Array.isArray(messages) ? messages : [];
   }
 
   /**
@@ -37,10 +33,10 @@ export class ChatHistory {
   }
 
   /**
-   * Get messages formatted for OpenAI API
+   * Get messages formatted for AI HTTP Client library
    */
   getOpenAIMessages() {
-    return toOpenAIFormat(this.messages);
+    return this.messages;
   }
 
   /**
@@ -196,7 +192,7 @@ export class ChatHistory {
    * Replace entire message history (for loading saved conversations)
    */
   setMessages(newMessages) {
-    this.messages = validateOpenAIMessages(newMessages);
+    this.messages = Array.isArray(newMessages) ? newMessages : [];
     return this;
   }
 

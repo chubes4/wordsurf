@@ -7,8 +7,24 @@
  * - User decision recording with tool-specific context
  */
 
-import { createUserMessage } from '../editor/MessageFormatUtils';
-import { createToolCallMessage, createToolResultMessage } from '../editor/MessageFormatUtils';
+// Simple message creation helpers for AI HTTP Client library
+const createUserMessage = (content) => ({ role: 'user', content });
+const createToolCallMessage = (toolCallId, toolName, toolArguments) => ({
+    role: 'assistant',
+    tool_calls: [{
+        id: toolCallId,
+        type: 'function',
+        function: {
+            name: toolName,
+            arguments: typeof toolArguments === 'string' ? toolArguments : JSON.stringify(toolArguments)
+        }
+    }]
+});
+const createToolResultMessage = (toolCallId, toolResult) => ({
+    role: 'tool',
+    tool_call_id: toolCallId,
+    content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)
+});
 
 export class ToolHistory {
   constructor() {

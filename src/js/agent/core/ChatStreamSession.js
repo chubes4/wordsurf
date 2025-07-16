@@ -1,7 +1,25 @@
 // ChatStreamSession.js
 // Centralized state manager for chat streaming, message lifecycle, and event handling
 
-import { createUserMessage, createAssistantMessage, createToolCallMessage, createToolResultMessage } from '../../editor/MessageFormatUtils';
+// Simple message creation helpers for AI HTTP Client library
+const createUserMessage = (content) => ({ role: 'user', content });
+const createAssistantMessage = (content) => ({ role: 'assistant', content });
+const createToolCallMessage = (toolCallId, toolName, toolArguments) => ({
+    role: 'assistant',
+    tool_calls: [{
+        id: toolCallId,
+        type: 'function',
+        function: {
+            name: toolName,
+            arguments: typeof toolArguments === 'string' ? toolArguments : JSON.stringify(toolArguments)
+        }
+    }]
+});
+const createToolResultMessage = (toolCallId, toolResult) => ({
+    role: 'tool',
+    tool_call_id: toolCallId,
+    content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult)
+});
 
 // Global flag to prevent concurrent EventSource connections
 let globalEventSourceActive = false;
