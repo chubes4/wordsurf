@@ -133,77 +133,80 @@ class Wordsurf_Tool_Manager {
     }
 
     /**
-     * Parses a full API response, finds, executes, and returns completed tool calls.
-     *
-     * @param string $full_response The complete raw response from the API.
-     * @return array A list of pending tool calls with their results.
+     * Register all Wordsurf tools with the AI HTTP Client library
+     * This replaces manual SSE parsing with proper library integration
      */
-    public function process_and_execute_tool_calls($full_response) {
-        error_log('Wordsurf DEBUG (ToolManager): Processing tool calls from response');
-        $pending_tool_calls = [];
-        // SSE events are separated by double newlines.
-        $event_blocks = explode("\n\n", trim($full_response));
-        error_log('Wordsurf DEBUG (ToolManager): Found ' . count($event_blocks) . ' event blocks');
+    public function register_tools_with_library() {
+        // Register tools via WordPress filters (cleaner approach)
+        add_filter('ai_http_client_execute_tool', [$this, 'handle_tool_execution_filter'], 10, 4);
+        add_filter('ai_http_client_get_tool_definition', [$this, 'get_tool_definition_filter'], 10, 2);
+        add_filter('ai_http_client_get_all_tool_definitions', [$this, 'get_all_tool_definitions_filter'], 10, 1);
+        
+        error_log('Wordsurf DEBUG (ToolManager): All tools registered with AI HTTP Client library via WordPress filters');
+    }
     
-        foreach ($event_blocks as $block_index => $block) {
-            $lines = explode("\n", $block);
-            $event_type = null;
-            $data_json = '';
+    /**
+     * WordPress filter handler for tool execution
+     * This is called by the AI HTTP Client library when tools need to be executed
+     *
+     * @param mixed $result Previous filter result
+     * @param string $tool_name Tool name to execute
+     * @param array $arguments Tool arguments
+     * @param string $call_id Tool call ID
+     * @return array|null Tool execution result or null if tool not handled
+     */
+    public function handle_tool_execution_filter($result, $tool_name, $arguments, $call_id) {
+        // Only handle if no previous filter handled it
+        if ($result !== null) {
+            return $result;
+        }
+        
+        // Only handle tools we know about
+        if (!isset($this->tools[$tool_name])) {
+            return null;
+        }
+        
+        error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' via AI HTTP Client library");
+        return $this->execute_tool($tool_name, $arguments, $call_id);
+    }
     
-            // First, parse the event type and data from the current block.
-            foreach ($lines as $line) {
-                if (strpos($line, 'event: ') === 0) {
-                    $event_type = substr($line, 7);
-                } elseif (strpos($line, 'data: ') === 0) {
-                    // This handles cases where the data payload itself might be split into multiple "data: " lines.
-                    $data_json .= substr($line, 6);
-                }
-            }
-            
-            error_log("Wordsurf DEBUG (ToolManager): Block {$block_index} - Event type: {$event_type}");
-            
-            // We only care about the 'response.completed' event for finding the final, authoritative list of tool calls.
-            if ($event_type === 'response.completed' && !empty($data_json)) {
-                error_log('Wordsurf DEBUG (ToolManager): Found response.completed event');
-                $decoded = json_decode($data_json, true);
-                error_log('Wordsurf DEBUG (ToolManager): Decoded response structure: ' . json_encode($decoded, JSON_PRETTY_PRINT));
-                
-                if (isset($decoded['response']['output'])) {
-                    $output_items = $decoded['response']['output'];
-                    error_log('Wordsurf DEBUG (ToolManager): Found ' . count($output_items) . ' output items');
-                    
-                    foreach ($output_items as $item_index => $item) {
-                        error_log("Wordsurf DEBUG (ToolManager): Output item {$item_index}: " . json_encode($item));
-                        
-                        if (isset($item['type']) && $item['type'] === 'function_call' && isset($item['status']) && $item['status'] === 'completed') {
-                            $tool_name = $item['name'];
-                            // Arguments might not be present if the call fails, so provide a default.
-                            $arguments = isset($item['arguments']) ? json_decode($item['arguments'], true) : [];
+    /**
+     * Get tool definition for AI HTTP Client library
+     *
+     * @param mixed $definition Previous filter result
+     * @param string $tool_name Tool name
+     * @return array|null Tool definition or null if not our tool
+     */
+    public function get_tool_definition_filter($definition, $tool_name) {
+        if ($definition !== null) {
+            return $definition;
+        }
+        
+        if (!isset($this->tools[$tool_name])) {
+            return null;
+        }
+        
+        $tool = $this->tools[$tool_name];
+        if (method_exists($tool, 'get_schema')) {
+            return $tool->get_schema();
+        }
+        
+        return null;
+    }
     
-                            // Ensure arguments are always an array, even if json_decode fails on an empty string.
-                            if ($arguments === null) {
-                                $arguments = [];
-                            }
-    
-                            error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' with ID '{$item['call_id']}'.");
-                            $result = $this->execute_tool($tool_name, $arguments, $item['call_id']);
-                            error_log("Wordsurf DEBUG (ToolManager): Tool '{$tool_name}' executed. Result: " . json_encode($result));
-    
-                            $pending_tool_calls[] = [
-                                'tool_call_object' => $item,
-                                'result' => $result,
-                            ];
-                        }
-                    }
-                    // We found and processed the 'response.completed' event, so we can stop searching.
-                    break;
-                } else {
-                    error_log('Wordsurf DEBUG (ToolManager): No output found in response.completed event');
-                }
+    /**
+     * Get all tool definitions for AI HTTP Client library
+     *
+     * @param array $definitions Existing definitions
+     * @return array Updated definitions
+     */
+    public function get_all_tool_definitions_filter($definitions) {
+        foreach ($this->tools as $tool_name => $tool) {
+            if (method_exists($tool, 'get_schema')) {
+                $definitions[$tool_name] = $tool->get_schema();
             }
         }
         
-        error_log('Wordsurf DEBUG (ToolManager): Returning ' . count($pending_tool_calls) . ' pending tool calls');
-        return $pending_tool_calls;
+        return $definitions;
     }
 } 

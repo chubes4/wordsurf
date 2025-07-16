@@ -63,6 +63,9 @@ class Wordsurf_Agent_Core {
         $this->context_manager = new Wordsurf_Context_Manager();
         $this->tool_manager    = new Wordsurf_Tool_Manager();
         
+        // Register tools with AI HTTP Client library for proper "round plug" integration
+        $this->tool_manager->register_tools_with_library();
+        
         $this->ai_client = new AI_HTTP_Client();
         
         $this->reset_message_history();
@@ -290,12 +293,44 @@ class Wordsurf_Agent_Core {
             }
         }
         
-        // Process tool calls and prepare results
-        $this->pending_tool_calls = $this->tool_manager->process_and_execute_tool_calls($full_response);
+        // Use AI HTTP Client library to extract tool calls (proper "round plug" architecture)
+        $extraction_result = AI_HTTP_OpenAI_Streaming_Module::extract_tool_calls($full_response);
+        $tool_calls = $extraction_result['tool_calls'] ?? [];
         
-        // Send tool results immediately while connection is still open
-        if ($this->has_pending_tool_calls()) {
-            error_log('Wordsurf DEBUG: Tool calls detected, sending results during stream. Found ' . count($this->pending_tool_calls) . ' tool calls.');
+        error_log('Wordsurf DEBUG: AI HTTP Client extracted ' . count($tool_calls) . ' tool calls');
+        
+        // Execute tools using the ToolExecutor (which will call our registered filters)
+        if (!empty($tool_calls)) {
+            $this->pending_tool_calls = [];
+            
+            foreach ($tool_calls as $tool_call) {
+                $tool_name = $tool_call['function']['name'] ?? '';
+                $arguments = $tool_call['function']['arguments'] ?? '{}';
+                $call_id = $tool_call['id'] ?? uniqid('tool_');
+                
+                // Parse arguments if they're JSON string
+                if (is_string($arguments)) {
+                    $arguments = json_decode($arguments, true) ?: [];
+                }
+                
+                error_log("Wordsurf DEBUG: Executing tool '{$tool_name}' via AI HTTP Client library");
+                
+                // Use the library's ToolExecutor which will call our registered WordPress filter
+                $result = AI_HTTP_Tool_Executor::execute_tool($tool_name, $arguments, $call_id);
+                
+                // Store in the same format for backward compatibility
+                $this->pending_tool_calls[] = [
+                    'tool_call_object' => [
+                        'call_id' => $call_id,
+                        'name' => $tool_name,
+                        'arguments' => is_string($arguments) ? $arguments : json_encode($arguments)
+                    ],
+                    'result' => $result,
+                ];
+            }
+            
+            // Send tool results immediately while connection is still open
+            error_log('Wordsurf DEBUG: Tool calls processed, sending results during stream. Found ' . count($this->pending_tool_calls) . ' tool calls.');
             foreach ($this->pending_tool_calls as $call) {
                 $tool_result = [
                     'tool_call_id' => $call['tool_call_object']['call_id'],
