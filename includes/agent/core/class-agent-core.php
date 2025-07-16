@@ -197,9 +197,8 @@ class Wordsurf_Agent_Core {
             }
         }
         
-        // Use AI HTTP Client library to extract tool calls (proper "round plug" architecture)
-        $extraction_result = AI_HTTP_OpenAI_Streaming_Module::extract_tool_calls($full_response);
-        $tool_calls = $extraction_result['tool_calls'] ?? [];
+        // Use AI HTTP Client library to extract tool calls (provider-agnostic)
+        $tool_calls = $this->ai_client->extract_tool_calls($full_response);
         
         error_log('Wordsurf DEBUG: AI HTTP Client extracted ' . count($tool_calls) . ' tool calls');
         
