@@ -22,9 +22,50 @@ export function streamChatMessage(messages, postId = null, onEvent, onComplete, 
     let isConnectionClosed = false;
     let hasToolCalls = false;
     
-    // Log ALL events received for debugging
+    // Handle the new standard format messages
     eventSource.onmessage = function(event) {
         console.log('🚀 DEFAULT MESSAGE EVENT:', event.type, event.data);
+        
+        try {
+            const data = JSON.parse(event.data);
+            
+            // Handle new standard format (provider-agnostic)
+            if (data.content !== undefined && data.done !== undefined) {
+                console.log('StreamApi: Received standard format chunk');
+                
+                // Send content if present (frontend doesn't care about provider)
+                if (data.content) {
+                    onEvent({ type: 'text', data: { content: data.content } });
+                }
+                
+                // Handle tool calls if present (provider-agnostic)
+                if (data.tool_calls && data.tool_calls.length > 0) {
+                    hasToolCalls = true;
+                    data.tool_calls.forEach(toolCall => {
+                        onEvent({ type: 'tool_start', data: toolCall });
+                    });
+                }
+                
+                // Handle completion (provider-agnostic)
+                if (data.done) {
+                    hasReceivedCompletion = true;
+                    onEvent({ type: 'stream_end', data: { status: 'completed' } });
+                    
+                    // Smart connection handling based on whether tools were involved
+                    if (hasToolCalls) {
+                        console.log('StreamApi: Stream completed, keeping connection open for tool results');
+                        // NO TIMEOUT - let tool_result event handle closing
+                    } else {
+                        console.log('StreamApi: Stream completed, no tools detected, closing immediately');
+                        isConnectionClosed = true;
+                        eventSource.close();
+                        if (onComplete) onComplete();
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse standard format message:', event.data, e);
+        }
     };
     
     // Override the open event to log connection status

@@ -137,11 +137,19 @@ class Wordsurf_Tool_Manager {
      * This replaces manual SSE parsing with proper library integration
      */
     public function register_tools_with_library() {
+        // Use a global variable to track registration across all instances
+        global $wordsurf_tools_registered;
+        
+        if ($wordsurf_tools_registered) {
+            return;
+        }
+        
         // Register tools via WordPress filters (cleaner approach)
         add_filter('ai_http_client_execute_tool', [$this, 'handle_tool_execution_filter'], 10, 4);
         add_filter('ai_http_client_get_tool_definition', [$this, 'get_tool_definition_filter'], 10, 2);
         add_filter('ai_http_client_get_all_tool_definitions', [$this, 'get_all_tool_definitions_filter'], 10, 1);
         
+        $wordsurf_tools_registered = true;
         error_log('Wordsurf DEBUG (ToolManager): All tools registered with AI HTTP Client library via WordPress filters');
     }
     

@@ -61,7 +61,11 @@ class Wordsurf_Agent_Core {
         // Register tools with AI HTTP Client library for proper "round plug" integration
         $this->tool_manager->register_tools_with_library();
         
-        $this->ai_client = new AI_HTTP_Client();
+        // Configure AI HTTP Client with WordPress settings
+        $options_manager = new AI_HTTP_Options_Manager();
+        $config = $options_manager->get_client_config();
+        
+        $this->ai_client = new AI_HTTP_Client($config);
         
         $this->reset_message_history();
     }
@@ -145,10 +149,20 @@ class Wordsurf_Agent_Core {
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
 
+        // Get model from current provider configuration
+        $options_manager = new AI_HTTP_Options_Manager();
+        $selected_provider = $options_manager->get_selected_provider();
+        $provider_settings = $options_manager->get_provider_settings($selected_provider);
+        
+        if (!isset($provider_settings['model'])) {
+            throw new Exception("No model configured for provider: {$selected_provider}");
+        }
+
         // Create standardized request - let library handle provider-specific formatting
         $request = [
             'messages' => $this->message_history, // Pass raw messages to library
             'tools' => $tool_schemas,
+            'model' => $provider_settings['model'], // Include model from provider config
             'max_tokens' => 1000,
         ];
 
