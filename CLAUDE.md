@@ -26,7 +26,7 @@ The plugin is installed as a standard WordPress plugin in `/wp-content/plugins/w
 
 ```bash
 # Development mode (watch for changes)
-npm run dev
+npm run start
 
 # Production build
 npm run build
@@ -151,7 +151,7 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 **Tool Integration**: WordPress tools are registered with the ai-http-client library via `Wordsurf_Tool_Manager::register_tools_with_library()` using WordPress filter system. Tool execution flows through `AI_HTTP_Tool_Executor::execute_tool()`.
 
-**Response Continuation Pattern**: Uses Responses API continuation with response ID tracking via `continue_with_tool_results()` for seamless multi-turn conversations with tool interactions.
+**Response Continuation Pattern**: The ai-http-client library handles all continuation logic through its `ContinuationManager` and provider-specific handlers. OpenAI continuations use response ID tracking, while other providers use conversation history. The system automatically stores continuation state in WordPress transients and provides `continue_with_tool_results()` for seamless multi-turn conversations with tool interactions.
 
 ## Development Guidelines
 
