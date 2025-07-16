@@ -167,7 +167,9 @@ class Wordsurf_Tool_Manager {
         }
         
         error_log("Wordsurf DEBUG (ToolManager): Executing tool '{$tool_name}' via AI HTTP Client library");
-        return $this->execute_tool($tool_name, $arguments, $call_id);
+        $result = $this->execute_tool($tool_name, $arguments, $call_id);
+        error_log("Wordsurf DEBUG (ToolManager): Tool '{$tool_name}' returned: " . json_encode($result));
+        return $result;
     }
     
     /**

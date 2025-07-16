@@ -122,7 +122,10 @@ export class ChatStreamSession {
                 // The actual tool result is nested under result.result
                 const actualToolResult = result.result || result;
                 
-                if (actualToolResult.preview === true && this.onDiffReceived) {
+                // Show diff if we have diff data (Wordsurf always shows previews for content changes)
+                const hasDiffData = actualToolResult.target_blocks || actualToolResult.original_content || actualToolResult.diff_block_content;
+                
+                if (hasDiffData && this.onDiffReceived) {
                     console.log('ChatStreamSession: CALLING onDiffReceived with diff data');
                     console.log('ChatStreamSession: Full result data:', result);
                     console.log('ChatStreamSession: Actual tool result:', actualToolResult);
@@ -140,9 +143,11 @@ export class ChatStreamSession {
                     });
                 } else {
                     console.log('ChatStreamSession: NOT calling onDiffReceived because:', {
-                        hasPreview: actualToolResult.preview === true,
+                        hasDiffData: !!hasDiffData,
                         hasCallback: !!this.onDiffReceived,
-                        preview: actualToolResult.preview,
+                        hasTargetBlocks: !!actualToolResult.target_blocks,
+                        hasOriginalContent: !!actualToolResult.original_content,
+                        hasDiffBlockContent: !!actualToolResult.diff_block_content,
                         resultKeys: result ? Object.keys(result) : 'no result',
                         actualToolResultKeys: actualToolResult ? Object.keys(actualToolResult) : 'no actualToolResult'
                     });

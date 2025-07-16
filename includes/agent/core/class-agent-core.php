@@ -317,6 +317,7 @@ class Wordsurf_Agent_Core {
                 
                 // Use the library's ToolExecutor which will call our registered WordPress filter
                 $result = AI_HTTP_Tool_Executor::execute_tool($tool_name, $arguments, $call_id);
+                error_log("Wordsurf DEBUG (AgentCore): ToolExecutor returned for '{$tool_name}': " . json_encode($result));
                 
                 // Store in the same format for backward compatibility
                 $this->pending_tool_calls[] = [
