@@ -193,15 +193,17 @@ class Wordsurf_Agent_Core {
             return $message !== null;
         }));
         
+        // Get provider and model from AI HTTP Client (the proper way)
+        $options_manager = new AI_HTTP_Options_Manager();
+        $provider = $options_manager->get_selected_provider();
+        $model = $options_manager->get_provider_setting($provider, 'model');
+
         $request = [
             'messages' => $sanitized_messages,
-            'model' => get_option('wordsurf_ai_model', 'gpt-4o'),
+            'model' => $model,
             'tools' => $tool_schemas,
             'max_tokens' => 1000,
         ];
-
-        // Get selected provider
-        $provider = get_option('wordsurf_ai_provider', 'openai');
 
         // The client streams raw chunks directly and returns the full response.
         error_log('Wordsurf DEBUG: Making AI streaming request with provider: ' . $provider);
