@@ -48,12 +48,7 @@ class Wordsurf_Agent_Core {
      * @var array
      */
     private $pending_tool_calls = [];
-    /**
-     * Current response ID for continuation requests
-     *
-     * @var string|null
-     */
-    private $current_response_id = null;
+    // Response ID tracking removed - now handled by AI HTTP Client library
 
     /**
      * Constructor
@@ -169,11 +164,8 @@ class Wordsurf_Agent_Core {
             throw $e;
         }
         
-        // Capture the response ID for potential continuation
-        $this->current_response_id = $this->ai_client->get_last_response_id();
-        if ($this->current_response_id) {
-            error_log('Wordsurf DEBUG: Stored response ID for continuation: ' . $this->current_response_id);
-        }
+        // Continuation state is now automatically managed by the library
+        error_log('Wordsurf DEBUG: Continuation state automatically stored by library');
         
         return $full_response;
     }
@@ -189,13 +181,8 @@ class Wordsurf_Agent_Core {
         error_log('Wordsurf DEBUG: Full response length: ' . strlen($full_response) . ' bytes');
         error_log('Wordsurf DEBUG: Full response preview: ' . substr($full_response, 0, 500) . '...');
         
-        // Capture response ID from AI client if not already set
-        if (!$this->current_response_id) {
-            $this->current_response_id = $this->ai_client->get_last_response_id();
-            if ($this->current_response_id) {
-                error_log('Wordsurf DEBUG: Captured response ID during completion: ' . $this->current_response_id);
-            }
-        }
+        // Continuation state is automatically managed by the library
+        error_log('Wordsurf DEBUG: Library automatically manages continuation state');
         
         // Use AI HTTP Client library to extract tool calls (provider-agnostic)
         $tool_calls = $this->ai_client->extract_tool_calls($full_response);
@@ -240,7 +227,7 @@ class Wordsurf_Agent_Core {
                     'tool_call_id' => $call['tool_call_object']['call_id'],
                     'tool_name' => $call['tool_call_object']['name'],
                     'result' => $call['result'],
-                    'response_id' => $this->current_response_id
+                    'response_id' => null // Response ID no longer needed - managed by library
                 ];
                 error_log('Wordsurf DEBUG: About to send tool_result event: ' . json_encode($tool_result));
                 $this->send_tool_result_to_frontend($tool_result);
@@ -279,7 +266,7 @@ class Wordsurf_Agent_Core {
         try {
             // Use library's provider-agnostic continuation method
             // Library handles: OpenAI response IDs vs Anthropic conversation rebuilding
-            $full_response = $this->ai_client->continue_with_tool_results(null, $tool_results, null, [$this, 'handle_stream_completion']);
+            $full_response = $this->ai_client->continue_with_tool_results($tool_results, null, [$this, 'handle_stream_completion']);
             
             error_log('Wordsurf DEBUG: Tool result continuation completed successfully');
             return $full_response;
@@ -291,12 +278,12 @@ class Wordsurf_Agent_Core {
     }
 
     /**
-     * Get current response ID - delegates to library
+     * Check if continuation is possible
      *
-     * @return string|null The current response ID or null if not available
+     * @return bool True if continuation is possible
      */
-    public function get_current_response_id() {
-        return $this->ai_client->get_last_response_id();
+    public function can_continue() {
+        return $this->ai_client->can_continue();
     }
 
     /**
