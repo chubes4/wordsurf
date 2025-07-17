@@ -47,7 +47,7 @@ export const useChatHandler = ({ postId, onDiffReceived, onUserDecision, chatHis
         updateUIState();
         setInputValue('');
         session.startStream(
-            chatHistory.current.getOpenAIMessages(),
+            chatHistory.current.getProviderMessages(),
             postId,
             streamChatMessage,
             updateUIState,
