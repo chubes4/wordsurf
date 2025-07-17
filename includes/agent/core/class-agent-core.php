@@ -148,20 +148,12 @@ class Wordsurf_Agent_Core {
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
 
-        // Get model from current provider configuration
-        $options_manager = new AI_HTTP_Options_Manager();
-        $selected_provider = $options_manager->get_selected_provider();
-        $provider_settings = $options_manager->get_provider_settings($selected_provider);
-        
-        if (!isset($provider_settings['model'])) {
-            throw new Exception("No model configured for provider: {$selected_provider}");
-        }
-
         // Create standardized request using AI HTTP Client's PromptManager
+        // Model is now handled automatically by the AI HTTP Client library
         $request = [
             'messages' => AI_HTTP_Prompt_Manager::build_messages($system_prompt, '', $this->message_history),
             'tools' => $tool_schemas,
-            'model' => $provider_settings['model'], // Include model from provider config
+            // No need to specify model - it will fall back to configured model
         ];
 
         // Library handles provider selection, model selection, and all provider-specific logic
