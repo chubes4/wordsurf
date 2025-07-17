@@ -23,7 +23,17 @@ class AI_HTTP_Openai_Request_Normalizer {
         // OpenAI uses our standard format, just validate and set defaults
         $normalized = $standard_request;
 
-        // Model will be set by automatic model detection if not provided
+        // Inject model from provider configuration if not provided
+        if (!isset($normalized['model'])) {
+            $options_manager = new AI_HTTP_Options_Manager();
+            $model = $options_manager->get_provider_setting('openai', 'model');
+            if ($model) {
+                $normalized['model'] = $model;
+            }
+        }
+        
+        // Enable OpenAI conversation state storage for continuation support
+        $normalized['store'] = true;
 
         // Validate and constrain parameters
         if (isset($normalized['temperature'])) {
@@ -36,6 +46,24 @@ class AI_HTTP_Openai_Request_Normalizer {
 
         if (isset($normalized['top_p'])) {
             $normalized['top_p'] = max(0, min(1, floatval($normalized['top_p'])));
+        }
+
+        // Handle system instruction by prepending as system message
+        if (isset($normalized['system_instruction'])) {
+            $system_message = [
+                'role' => 'system',
+                'content' => $normalized['system_instruction']
+            ];
+            
+            // Prepend system message to messages array
+            if (isset($normalized['messages']) && is_array($normalized['messages'])) {
+                array_unshift($normalized['messages'], $system_message);
+            } else {
+                $normalized['messages'] = [$system_message];
+            }
+            
+            // Remove system_instruction as OpenAI doesn't use it directly
+            unset($normalized['system_instruction']);
         }
 
         // Handle multi-modal content (images, files) in messages
@@ -71,17 +99,28 @@ class AI_HTTP_Openai_Request_Normalizer {
                 'role' => $message['role']
             );
 
-            // Handle multi-modal content
-            if (isset($message['images']) || isset($message['image_urls']) || isset($message['files'])) {
+            // For Responses API, always use simple text content unless explicitly multimodal
+            // Only use multimodal format if there are actual images/files
+            if ((isset($message['images']) && !empty($message['images'])) || 
+                (isset($message['image_urls']) && !empty($message['image_urls'])) || 
+                (isset($message['files']) && !empty($message['files']))) {
                 $normalized_message['content'] = $this->build_multimodal_content($message);
             } else {
-                // Standard text content
+                // Standard text content for Responses API
                 $normalized_message['content'] = $message['content'];
             }
+            
+            // Convert frontend "type":"text" to Responses API "type":"message"
+            if (isset($message['type']) && $message['type'] === 'text') {
+                $normalized_message['type'] = 'message';
+            } elseif (isset($message['type'])) {
+                $normalized_message['type'] = $message['type'];
+            }
 
-            // Preserve other OpenAI-specific fields (tool_calls, tool_call_id, etc.)
+            // Preserve only known OpenAI-specific fields (reject unknown parameters)
+            $allowed_fields = array('tool_calls', 'tool_call_id', 'name', 'function_call');
             foreach ($message as $key => $value) {
-                if (!in_array($key, array('role', 'content', 'images', 'image_urls', 'files'))) {
+                if (in_array($key, $allowed_fields)) {
                     $normalized_message[$key] = $value;
                 }
             }
@@ -102,10 +141,10 @@ class AI_HTTP_Openai_Request_Normalizer {
     private function build_multimodal_content($message) {
         $content = array();
 
-        // Add text content first
+        // Add text content first - use 'message' type for Responses API
         if (!empty($message['content'])) {
             $content[] = array(
-                'type' => 'text',
+                'type' => 'message',
                 'text' => $message['content']
             );
         }

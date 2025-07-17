@@ -81,6 +81,9 @@ if (!function_exists('ai_http_client_init')) {
         require_once AI_HTTP_CLIENT_PATH . '/src/Utils/SSEParser.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Utils/FileUploadClient.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Utils/ToolExecutor.php';
+        require_once AI_HTTP_CLIENT_PATH . '/src/Utils/Normalizers/GenericStreamNormalizer.php';
+        require_once AI_HTTP_CLIENT_PATH . '/src/Utils/ContinuationState.php';
+        require_once AI_HTTP_CLIENT_PATH . '/src/Utils/ContinuationManager.php';
         
         
         // 3. Provider implementations (organized by provider)
@@ -91,6 +94,7 @@ if (!function_exists('ai_http_client_init')) {
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/OpenAI/Provider.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/OpenAI/RequestNormalizer.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/OpenAI/ResponseNormalizer.php';
+        require_once AI_HTTP_CLIENT_PATH . '/src/Providers/OpenAI/ContinuationHandler.php';
         
         // Anthropic Provider
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Anthropic/StreamingModule.php';
@@ -99,6 +103,7 @@ if (!function_exists('ai_http_client_init')) {
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Anthropic/Provider.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Anthropic/RequestNormalizer.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Anthropic/ResponseNormalizer.php';
+        require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Anthropic/ContinuationHandler.php';
         
         // Google Gemini Provider
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Gemini/StreamingModule.php';
@@ -107,6 +112,7 @@ if (!function_exists('ai_http_client_init')) {
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Gemini/Provider.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Gemini/RequestNormalizer.php';
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Gemini/ResponseNormalizer.php';
+        require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Gemini/ContinuationHandler.php';
         
         // Grok/X.AI Provider
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/Grok/StreamingModule.php';
@@ -125,15 +131,6 @@ if (!function_exists('ai_http_client_init')) {
         require_once AI_HTTP_CLIENT_PATH . '/src/Providers/OpenRouter/ResponseNormalizer.php';
         
         // Additional providers can be added here or auto-discovered
-        
-        // 5. Unified Architecture (NEW)
-        require_once AI_HTTP_CLIENT_PATH . '/src/Normalizers/UnifiedRequestNormalizer.php';
-        require_once AI_HTTP_CLIENT_PATH . '/src/Normalizers/UnifiedResponseNormalizer.php';
-        require_once AI_HTTP_CLIENT_PATH . '/src/Normalizers/UnifiedStreamingNormalizer.php';
-        require_once AI_HTTP_CLIENT_PATH . '/src/Normalizers/UnifiedToolResultsNormalizer.php';
-        require_once AI_HTTP_CLIENT_PATH . '/src/Normalizers/UnifiedConnectionTestNormalizer.php';
-        require_once AI_HTTP_CLIENT_PATH . '/src/Providers/openai.php';
-        require_once AI_HTTP_CLIENT_PATH . '/src/class-client-unified.php';
         
         // 4. Main orchestrator client
         require_once AI_HTTP_CLIENT_PATH . '/src/class-client.php';

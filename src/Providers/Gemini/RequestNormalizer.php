@@ -22,8 +22,14 @@ class AI_HTTP_Gemini_Request_Normalizer {
     public function normalize($standard_request) {
         $normalized = array();
 
-        // Model will be set by automatic model detection if not provided
-        $model = $standard_request['model'] ?? 'gemini-1.5-flash';
+        // Model must be explicitly provided - no defaults
+        if (!isset($standard_request['model'])) {
+            throw new Exception('Model parameter is required for Gemini requests');
+        }
+        $model = $standard_request['model'];
+        
+        // Preserve model parameter for Provider URL construction
+        $normalized['model'] = $model;
 
         // Convert messages to Gemini contents format
         if (isset($standard_request['messages']) && is_array($standard_request['messages'])) {
@@ -93,7 +99,6 @@ class AI_HTTP_Gemini_Request_Normalizer {
      */
     private function convert_messages_to_contents($messages) {
         $contents = array();
-        $system_instruction = '';
 
         foreach ($messages as $message) {
             if (!isset($message['role']) || !isset($message['content'])) {
@@ -103,9 +108,8 @@ class AI_HTTP_Gemini_Request_Normalizer {
             $role = $message['role'];
             $content = $message['content'];
 
-            // Handle system messages separately - they become systemInstruction
+            // Skip system messages - they should be handled as systemInstruction
             if ($role === 'system') {
-                $system_instruction .= $content . "\n";
                 continue;
             }
 
