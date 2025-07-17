@@ -159,8 +159,7 @@ class Wordsurf_Agent_Core {
 
         // Create standardized request using AI HTTP Client's PromptManager
         $request = [
-            'messages' => $this->message_history, // User messages only
-            'system_instruction' => $system_prompt, // System prompt handled properly
+            'messages' => AI_HTTP_Prompt_Manager::build_messages($system_prompt, '', $this->message_history),
             'tools' => $tool_schemas,
             'model' => $provider_settings['model'], // Include model from provider config
         ];
