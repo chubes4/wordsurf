@@ -18,12 +18,16 @@ class AI_HTTP_Unified_Request_Normalizer {
      *
      * @param array $standard_request Standardized request format
      * @param string $provider_name Target provider (openai, anthropic, gemini, etc.)
+     * @param array $provider_config Provider configuration from options
      * @return array Provider-specific formatted request
      * @throws Exception If provider not supported
      */
-    public function normalize($standard_request, $provider_name) {
+    public function normalize($standard_request, $provider_name, $provider_config = array()) {
         // Validate standard input first
         $this->validate_standard_request($standard_request);
+        
+        // Apply model fallback logic
+        $standard_request = $this->apply_model_fallback($standard_request, $provider_config);
         
         // Route to provider-specific normalization
         switch (strtolower($provider_name)) {
@@ -45,6 +49,30 @@ class AI_HTTP_Unified_Request_Normalizer {
             default:
                 throw new Exception("Unsupported provider: {$provider_name}");
         }
+    }
+
+    /**
+     * Apply model fallback logic
+     *
+     * @param array $request Request to check for model
+     * @param array $provider_config Provider configuration
+     * @return array Request with model ensured
+     * @throws Exception If no model available
+     */
+    private function apply_model_fallback($request, $provider_config) {
+        // If model is already in request, use it
+        if (isset($request['model']) && !empty($request['model'])) {
+            return $request;
+        }
+        
+        // Fall back to configured model
+        if (isset($provider_config['model']) && !empty($provider_config['model'])) {
+            $request['model'] = $provider_config['model'];
+            return $request;
+        }
+        
+        // No model available - throw exception
+        throw new Exception('No model specified in request and no model configured for provider');
     }
 
     /**
@@ -84,7 +112,7 @@ class AI_HTTP_Unified_Request_Normalizer {
 
         // Convert max_tokens to max_output_tokens for Responses API
         if (isset($request['max_tokens'])) {
-            $request['max_output_tokens'] = max(16, intval($request['max_tokens']));
+            $request['max_output_tokens'] = intval($request['max_tokens']);
             unset($request['max_tokens']);
         }
 
@@ -316,16 +344,22 @@ class AI_HTTP_Unified_Request_Normalizer {
         $normalized = array();
 
         foreach ($tools as $tool) {
+            // Handle nested format (Chat Completions) - convert to flat format (Responses API)
             if (isset($tool['type']) && $tool['type'] === 'function' && isset($tool['function'])) {
-                $normalized[] = $tool; // Already in OpenAI format
-            } elseif (isset($tool['name']) && isset($tool['description'])) {
                 $normalized[] = array(
+                    'name' => sanitize_text_field($tool['function']['name']),
                     'type' => 'function',
-                    'function' => array(
-                        'name' => sanitize_text_field($tool['name']),
-                        'description' => sanitize_textarea_field($tool['description']),
-                        'parameters' => $tool['parameters'] ?? array()
-                    )
+                    'description' => sanitize_textarea_field($tool['function']['description']),
+                    'parameters' => $tool['function']['parameters'] ?? array()
+                );
+            } 
+            // Handle flat format - pass through with sanitization
+            elseif (isset($tool['name']) && isset($tool['description'])) {
+                $normalized[] = array(
+                    'name' => sanitize_text_field($tool['name']),
+                    'type' => 'function',
+                    'description' => sanitize_textarea_field($tool['description']),
+                    'parameters' => $tool['parameters'] ?? array()
                 );
             }
         }
