@@ -22,37 +22,40 @@ class Wordsurf_Tool_Manager {
     private $tools = [];
     
     /**
-     * Constructor
+     * Constructor - no longer pre-loads tools
      */
     public function __construct() {
-        $this->load_tools();
+        // Tools will be loaded on-demand when requested
     }
     
     /**
-     * Load all available tools
+     * Load a specific tool on-demand
      */
-    private function load_tools() {
-        // Load the read_post tool
-        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/read_post.php';
+    private function load_tool($tool_name) {
+        // Prevent loading the same tool twice
+        if (isset($this->tools[$tool_name])) {
+            return;
+        }
         
-        $this->tools['read_post'] = new Wordsurf_ReadPostTool();
+        $tool_file_map = [
+            'read_post' => 'read_post.php',
+            'edit_post' => 'edit_post.php', 
+            'insert_content' => 'insert_content.php',
+            'write_to_post' => 'write_to_post.php'
+        ];
         
-        // Load the edit_post tool
-        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/edit_post.php';
+        $tool_class_map = [
+            'read_post' => 'Wordsurf_ReadPostTool',
+            'edit_post' => 'Wordsurf_EditPostTool',
+            'insert_content' => 'Wordsurf_InsertContentTool', 
+            'write_to_post' => 'Wordsurf_WriteToPostTool'
+        ];
         
-        $this->tools['edit_post'] = new Wordsurf_EditPostTool();
-        
-        // Load the insert_content tool
-        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/insert_content.php';
-        
-        $this->tools['insert_content'] = new Wordsurf_InsertContentTool();
-        
-        // Load the write_to_post tool
-        require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/write_to_post.php';
-        
-        $this->tools['write_to_post'] = new Wordsurf_WriteToPostTool();
-        
-        // Future tools will be loaded here
+        if (isset($tool_file_map[$tool_name]) && isset($tool_class_map[$tool_name])) {
+            require_once WORDSURF_PLUGIN_DIR . 'includes/agent/core/tools/' . $tool_file_map[$tool_name];
+            $class_name = $tool_class_map[$tool_name];
+            $this->tools[$tool_name] = new $class_name();
+        }
     }
     
     /**
@@ -143,8 +146,6 @@ class Wordsurf_Tool_Manager {
         add_filter('ai_http_client_execute_tool', [__CLASS__, 'handle_tool_execution_filter'], 10, 4);
         add_filter('ai_http_client_get_tool_definition', [__CLASS__, 'get_tool_definition_filter'], 10, 2);
         add_filter('ai_http_client_get_all_tool_definitions', [__CLASS__, 'get_all_tool_definitions_filter'], 10, 1);
-        
-        error_log('Wordsurf DEBUG (ToolManager): All tools registered with AI HTTP Client library via WordPress filters');
     }
     
     /**
@@ -166,7 +167,13 @@ class Wordsurf_Tool_Manager {
         // Create instance to access tools
         $tool_manager = new self();
         
-        // Only handle tools we know about
+        // Load tool on-demand if we support it
+        $supported_tools = ['read_post', 'edit_post', 'insert_content', 'write_to_post'];
+        if (in_array($tool_name, $supported_tools)) {
+            $tool_manager->load_tool($tool_name);
+        }
+        
+        // Only handle tools we have loaded
         if (!isset($tool_manager->tools[$tool_name])) {
             return null;
         }
@@ -192,6 +199,12 @@ class Wordsurf_Tool_Manager {
         // Create instance to access tools
         $tool_manager = new self();
         
+        // Load tool on-demand if we support it
+        $supported_tools = ['read_post', 'edit_post', 'insert_content', 'write_to_post'];
+        if (in_array($tool_name, $supported_tools)) {
+            $tool_manager->load_tool($tool_name);
+        }
+        
         if (!isset($tool_manager->tools[$tool_name])) {
             return null;
         }
@@ -211,8 +224,13 @@ class Wordsurf_Tool_Manager {
      * @return array Updated definitions
      */
     public static function get_all_tool_definitions_filter($definitions) {
-        // Create instance to access tools
+        // For getting all definitions, we need to load all supported tools
         $tool_manager = new self();
+        $supported_tools = ['read_post', 'edit_post', 'insert_content', 'write_to_post'];
+        
+        foreach ($supported_tools as $tool_name) {
+            $tool_manager->load_tool($tool_name);
+        }
         
         foreach ($tool_manager->tools as $tool_name => $tool) {
             if (method_exists($tool, 'get_schema')) {

@@ -15,9 +15,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Wordsurf_System_Prompt {
     
     /**
+     * Track if initialization has already been done
+     */
+    private static $initialized = false;
+    
+    /**
+     * Constructor - Initialize prompt integration
+     */
+    public function __construct() {
+        self::init();
+    }
+    
+    /**
      * Initialize prompt integration
      */
     public static function init() {
+        // Prevent duplicate initialization
+        if (self::$initialized) {
+            return;
+        }
+        self::$initialized = true;
         add_action('init', [__CLASS__, 'register_tool_definitions'], 10);
         add_action('init', [__CLASS__, 'set_default_enabled_tools'], 20);
         add_filter('ai_http_client_current_plugin', [__CLASS__, 'set_current_plugin'], 10);
@@ -280,6 +297,3 @@ HOWEVER: Keep your planning messages CONCISE. Describe your approach without quo
         return $final_prompt;
     }
 }
-
-// Initialize prompt integration
-Wordsurf_System_Prompt::init();

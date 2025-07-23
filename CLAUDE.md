@@ -31,16 +31,16 @@ npm run start
 # Production build
 npm run build
 
-# Linting
-npm run lint:js      # JavaScript linting
-npm run lint:css     # CSS linting
+# Linting and Formatting
+npm run lint:js          # JavaScript linting
+npm run lint:css         # CSS linting
+npm run format           # Format code
 
 # Testing
-npm run test:unit    # Unit tests
-npm run test:e2e     # End-to-end tests
+npm run test:unit        # Unit tests
+npm run test:e2e         # End-to-end tests
 
 # Other utilities
-npm run format           # Format code
 npm run plugin-zip       # Create distribution zip
 npm run lint:md:docs     # Lint markdown documentation
 npm run lint:pkg-json    # Lint package.json
@@ -51,7 +51,13 @@ npm run packages-update  # Update WordPress dependencies
 
 Wordsurf is an agentic WordPress plugin that integrates AI directly into the WordPress block editor. The system enables real-time streaming chat with AI agents that can read and manipulate WordPress content through a sophisticated tool system with diff preview capabilities.
 
-### Core Streaming Architecture
+### Key Architecture Patterns
+
+**Singleton Plugin Pattern**: Main plugin class (`wordsurf.php`) uses singleton pattern for initialization. Core classes:
+- `Wordsurf` (main plugin class at `wordsurf.php`)
+- `Wordsurf_Agent_Core` (`includes/agent/core/class-agent-core.php`)
+- `Wordsurf_Tool_Manager` (`includes/agent/core/class-tool-manager.php`)
+- `Wordsurf_Chat_Handler` (`includes/api/class-chat-handler.php`)
 
 **Server-Sent Events (SSE)**: All AI interactions use streaming responses for real-time user experience. The `ChatStreamSession` class manages the streaming state and tool execution pipeline.
 
@@ -66,7 +72,7 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 **Tool Schema Generation**: Base class automatically generates function calling schemas from parameter definitions with proper strict mode handling for all supported AI providers.
 
-**Tool Discovery**: `Wordsurf_Tool_Manager::load_tools()` automatically discovers and registers tools from `includes/agent/core/tools/`.
+**Tool Discovery**: `Wordsurf_Tool_Manager` uses on-demand tool loading - tools are only loaded when the AI actually requests them, eliminating page load overhead.
 
 ### Diff Preview System
 
@@ -127,15 +133,17 @@ Wordsurf is an agentic WordPress plugin that integrates AI directly into the Wor
 
 **Adding New Tools**:
 1. Create class extending `Wordsurf_BaseTool` in `includes/agent/core/tools/`
-2. Implement required methods with proper parameter definitions
-3. Register in `Wordsurf_Tool_Manager::load_tools()`
-4. Tool schema generation and registration is automatic
+2. Implement required methods with proper parameter definitions  
+3. Add tool to the supported tools array in `Wordsurf_Tool_Manager::load_tool()`
+4. Tools are loaded on-demand when AI requests them - no manual registration needed
 
 **Function Calling Implementation**: All tools use strict mode schemas with proper error handling and security validation. Parameters must be explicitly defined with `additionalProperties: false`.
 
 **Streaming Responses**: All AI interactions use streaming for real-time user experience. Tools execute during streaming, not after completion.
 
 **Diff Acceptance Pattern**: When implementing bulk operations (accept/reject all), suppress individual chat continuations and trigger a single continuation after all operations complete to prevent EventSource conflicts.
+
+**Performance Optimization Pattern**: Tool registration uses lazy loading via WordPress filters. Tools are only loaded when the AI actually calls them through the `ai_http_client_execute_tool` filter. This eliminates the performance overhead of loading AI components on every page load, since they're only needed during active AI conversations.
 
 ## AI HTTP Client Integration
 
@@ -184,12 +192,23 @@ This ensures changes are properly tracked in both repositories and the original 
 - `insert_content.php` - Insert new content at specified locations
 
 **Tool Development Pattern**:
-1. Extend `Wordsurf_BaseTool` base class
-2. Implement `get_name()`, `get_description()`, `define_parameters()`, `execute()`
+1. Create class extending `Wordsurf_BaseTool` in `includes/agent/core/tools/`
+2. Implement required methods: `get_name()`, `get_description()`, `define_parameters()`, `execute()`
 3. Return results with `preview: true` for diff system integration
-4. Tool Manager automatically discovers and registers new tools
+4. Add tool name to `$supported_tools` arrays in `Wordsurf_Tool_Manager::load_tool()` and filter handlers
+5. Tool Manager uses lazy loading - tools are loaded only when AI requests them via the `ai_http_client_execute_tool` filter
 
 **Debugging**: Use `error_log('Wordsurf DEBUG: message')` for debug logging throughout the system.
+
+## Critical Development Considerations
+
+**Block Indexing**: Both backend and frontend must filter out empty blocks (`blockName: null`) to maintain consistent block indexing when targeting specific blocks. This is critical for the diff preview system to work correctly.
+
+**EventSource Management**: Prevent multiple EventSource connections through proper state checking in `ChatHandler` to avoid "Store already registered" errors. Only one chat session should be active at a time.
+
+**Git Subtree Management**: The `ai-http-client` library at `lib/ai-http-client/` is managed as a git subtree. Always make changes to the local copy, then sync back to the original repository using git subtree commands.
+
+**WordPress Integration**: All AJAX requests must include WordPress nonces for security. Tool execution requires proper capability checks (`edit_posts`, `publish_posts`). Use WordPress sanitization functions (`wp_kses_post`, `sanitize_text_field`).
 
 ## Provider Agnostic Design
 
