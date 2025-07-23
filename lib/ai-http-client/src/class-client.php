@@ -58,6 +58,41 @@ class AI_HTTP_Client {
         $this->streaming_normalizer = new AI_HTTP_Unified_Streaming_Normalizer();
         $this->tool_results_normalizer = new AI_HTTP_Unified_Tool_Results_Normalizer();
         $this->connection_test_normalizer = new AI_HTTP_Unified_Connection_Test_Normalizer();
+
+        // Initialize WordPress SSE handler for streaming support
+        $this->init_sse_handler();
+    }
+
+    /**
+     * Initialize WordPress SSE handler for streaming support
+     */
+    private function init_sse_handler() {
+        // Only initialize if WordPress is loaded and we're not in CLI
+        if (!function_exists('rest_url') || (defined('WP_CLI') && WP_CLI)) {
+            return;
+        }
+
+        // Load SSE handler class if not already loaded
+        if (!class_exists('AI_HTTP_WordPressSSEHandler')) {
+            $sse_handler_path = dirname(__FILE__) . '/Utils/WordPressSSEHandler.php';
+            if (file_exists($sse_handler_path)) {
+                require_once $sse_handler_path;
+            }
+        }
+
+        // Initialize and register SSE endpoint
+        if (class_exists('AI_HTTP_WordPressSSEHandler')) {
+            $sse_handler = new AI_HTTP_WordPressSSEHandler();
+            
+            // Register endpoint on WordPress init if not already done
+            if (!did_action('init')) {
+                add_action('init', array($sse_handler, 'register_sse_endpoint'));
+            } else {
+                $sse_handler->register_sse_endpoint();
+            }
+
+            error_log('AI HTTP Client DEBUG: WordPress SSE handler initialized');
+        }
     }
 
     /**

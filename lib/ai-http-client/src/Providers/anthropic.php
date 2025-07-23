@@ -79,7 +79,7 @@ class AI_HTTP_Anthropic_Provider {
     }
 
     /**
-     * Send raw streaming request to Anthropic API
+     * Send raw streaming request via WordPress SSE endpoint
      *
      * @param array $provider_request Already normalized for Anthropic
      * @param callable $callback Optional callback for each chunk
@@ -91,44 +91,34 @@ class AI_HTTP_Anthropic_Provider {
             throw new Exception('Anthropic provider not configured - missing API key');
         }
 
-        $url = $this->base_url . '/messages';
-        $headers = $this->get_auth_headers();
-        $headers['Content-Type'] = 'application/json';
+        error_log('AI HTTP Client DEBUG: Anthropic streaming request via WordPress SSE endpoint');
 
-        $provider_request['stream'] = true;
+        // Use WordPress SSE endpoint instead of direct CURL
+        $sse_url = rest_url('ai-http-client/v1/stream');
+        
+        // Prepare configuration for SSE handler
+        $config = array(
+            'api_key' => $this->api_key,
+            'base_url' => $this->base_url,
+            'timeout' => $this->timeout
+        );
 
-        $response_body = '';
-        $ch = curl_init();
-        curl_setopt_array($ch, array(
-            CURLOPT_URL => $url,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => wp_json_encode($provider_request),
-            CURLOPT_HTTPHEADER => $this->format_curl_headers($headers),
-            CURLOPT_WRITEFUNCTION => function($ch, $data) use ($callback, &$response_body) {
-                $response_body .= $data; // Capture response for error logging
-                if ($callback && is_callable($callback)) {
-                    call_user_func($callback, $data);
-                } else {
-                    echo $data;
-                    flush();
-                }
-                return strlen($data);
-            },
-            CURLOPT_TIMEOUT => $this->timeout,
-            CURLOPT_RETURNTRANSFER => false
+        $response = wp_remote_post($sse_url, array(
+            'headers' => array(
+                'X-WP-Nonce' => wp_create_nonce('wp_rest'),
+                'Content-Type' => 'application/json',
+            ),
+            'body' => wp_json_encode(array(
+                'provider' => 'anthropic',
+                'request' => $provider_request,
+                'config' => $config
+            )),
+            'timeout' => $this->timeout,
+            'blocking' => false // Non-blocking for SSE
         ));
 
-        $result = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        if ($result === false) {
-            throw new Exception('Anthropic streaming request failed: ' . $error);
-        }
-
-        if ($http_code !== 200) {
-            throw new Exception('Anthropic streaming request failed with HTTP ' . $http_code);
+        if (is_wp_error($response)) {
+            throw new Exception('WordPress SSE request failed: ' . $response->get_error_message());
         }
 
         return '';
@@ -164,11 +154,20 @@ class AI_HTTP_Anthropic_Provider {
      *
      * @return array Headers array
      */
-    private function get_auth_headers() {
+    public function get_auth_headers() {
         return array(
             'x-api-key' => $this->api_key,
             'anthropic-version' => '2023-06-01'
         );
+    }
+
+    /**
+     * Get streaming URL for Anthropic API
+     *
+     * @return string Streaming endpoint URL
+     */
+    public function get_streaming_url() {
+        return $this->base_url . '/messages';
     }
 
     /**
