@@ -33,15 +33,41 @@ class AI_HTTP_Client {
     private $providers = array();
 
     /**
-     * Constructor with unified normalizers
+     * Plugin context for scoped configuration
+     */
+    private $plugin_context;
+
+    /**
+     * Whether the client is properly configured
+     */
+    private $is_configured = false;
+
+    /**
+     * Constructor with unified normalizers and plugin context support
      *
-     * @param array $config Client configuration (optional - will auto-read from WordPress options if empty)
+     * @param array $config Client configuration - should include 'plugin_context'
      */
     public function __construct($config = array()) {
-        // Auto-read from WordPress options if no config provided
-        if (empty($config) && class_exists('AI_HTTP_Options_Manager')) {
-            $options_manager = new AI_HTTP_Options_Manager();
-            $config = $options_manager->get_client_config();
+        // Graceful fallback for missing plugin context
+        if (empty($config['plugin_context'])) {
+            $this->handle_missing_plugin_context();
+            return;
+        }
+        
+        $this->plugin_context = sanitize_key($config['plugin_context']);
+        $this->is_configured = true;
+        
+        // Auto-read from WordPress options if no provider config provided
+        if (empty($config['default_provider']) && class_exists('AI_HTTP_Options_Manager')) {
+            try {
+                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+                $auto_config = $options_manager->get_client_config();
+                $config = array_merge($auto_config, $config);
+            } catch (Exception $e) {
+                $this->log_error('Failed to load options: ' . $e->getMessage());
+                $this->is_configured = false;
+                return;
+            }
         }
         
         // Set default configuration
@@ -68,6 +94,11 @@ class AI_HTTP_Client {
      * @return array Standardized "round plug" output
      */
     public function send_request($request, $provider_name = null) {
+        // Return error if client is not properly configured
+        if (!$this->is_configured) {
+            return $this->create_error_response('AI HTTP Client is not properly configured - plugin context is required');
+        }
+        
         $provider_name = $provider_name ?: $this->config['default_provider'];
         
         try {
@@ -108,6 +139,12 @@ class AI_HTTP_Client {
      * @throws Exception If streaming fails
      */
     public function send_streaming_request($request, $provider_name = null, $completion_callback = null) {
+        // Return early if client is not properly configured
+        if (!$this->is_configured) {
+            AI_HTTP_Plugin_Context_Helper::log_context_error('Streaming request failed - client not properly configured', 'AI_HTTP_Client');
+            return;
+        }
+        
         $provider_name = $provider_name ?: $this->config['default_provider'];
 
         try {
@@ -279,11 +316,15 @@ class AI_HTTP_Client {
      * @param string $provider_name Provider name
      * @return array Provider configuration
      */
+    /**
+     * Get provider configuration from plugin-scoped options
+     *
+     * @param string $provider_name Provider name
+     * @return array Provider configuration with merged API keys
+     */
     private function get_provider_config($provider_name) {
-        $options_manager = new AI_HTTP_Options_Manager();
-        $all_providers = $options_manager->get_all_providers();
-        
-        return isset($all_providers[$provider_name]) ? $all_providers[$provider_name] : array();
+        $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+        return $options_manager->get_provider_settings($provider_name);
     }
 
 
@@ -322,5 +363,14 @@ class AI_HTTP_Client {
             'provider' => $provider_name,
             'raw_response' => null
         );
+    }
+
+    /**
+     * Check if client is properly configured
+     *
+     * @return bool True if configured, false otherwise
+     */
+    public function is_configured() {
+        return $this->is_configured;
     }
 }
