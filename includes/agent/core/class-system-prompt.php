@@ -264,7 +264,7 @@ HOWEVER: Keep your planning messages CONCISE. Describe your approach without quo
      */
     public function build_prompt($post_context = [], $available_tools = []) {
         // Get user's custom system prompt from UI component
-        $options_manager = new AI_HTTP_Options_Manager();
+        $options_manager = new AI_HTTP_Options_Manager('wordsurf');
         $provider = $options_manager->get_selected_provider();
         $user_system_prompt = $options_manager->get_provider_setting($provider, 'system_prompt', '');
         

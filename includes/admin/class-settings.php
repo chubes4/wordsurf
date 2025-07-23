@@ -58,6 +58,7 @@ class Wordsurf_Settings {
             <?php
             // Render the AI HTTP Client provider management component
             echo AI_HTTP_ProviderManager_Component::render([
+                'plugin_context' => 'wordsurf',
                 'components' => [
                     'core' => ['provider_selector', 'api_key_input', 'model_selector'],
                     'extended' => ['temperature_slider', 'system_prompt_field']
