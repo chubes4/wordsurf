@@ -1,22 +1,33 @@
 # AI HTTP Client for WordPress
 
-A professional WordPress library for unified AI provider communication. Drop-in solution for advanced WordPress plugin developers who need AI functionality with minimal integration effort.
+A professional WordPress library for unified AI provider communication. Drop-in solution for WordPress plugin developers who need AI functionality with minimal integration effort.
 
 ## Why This Library?
 
-**For Advanced WordPress Developers** - Not beginners, not general PHP projects. This is for experienced plugin developers who want to ship AI features fast.
+This is for WordPress plugin developers who want to ship AI features fast.
 
 **Complete Drop-In Solution:**
 - ✅ Backend AI integration + Admin UI component
 - ✅ Zero styling (you control the design)
 - ✅ Unified architecture with shared normalizers
 - ✅ Standardized request/response formats
-- ✅ WordPress-native (no Composer, uses `wp_remote_post`)
+- ✅ WordPress-native (Composer optional, uses `wp_remote_post`)
 - ✅ Dynamic model fetching (no hardcoded models)
 
 ## Installation
 
-### Method 1: Git Subtree (Recommended)
+### Method 1: Composer (New)
+```bash
+composer require chubes/ai-http-client
+```
+
+Then in your code:
+```php
+require_once __DIR__ . '/vendor/autoload.php';
+// Library automatically loads via Composer autoloader
+```
+
+### Method 2: Git Subtree (Recommended for WordPress)
 Install as a subtree in your plugin for automatic updates:
 
 ```bash
@@ -27,12 +38,20 @@ git subtree add --prefix=lib/ai-http-client https://github.com/chubes4/ai-http-c
 git subtree pull --prefix=lib/ai-http-client https://github.com/chubes4/ai-http-client.git main --squash
 ```
 
-### Method 2: Direct Download
+### Method 3: Direct Download
 Download and place in your plugin's `/lib/ai-http-client/` directory.
 
 ## Quick Start
 
 ### 1. Include the Library
+
+**With Composer:**
+```php
+require_once __DIR__ . '/vendor/autoload.php';
+// No additional includes needed
+```
+
+**Without Composer (Git Subtree/Manual):**
 ```php
 // In your plugin
 require_once plugin_dir_path(__FILE__) . 'lib/ai-http-client/ai-http-client.php';
@@ -212,21 +231,13 @@ $prompt = AI_HTTP_Prompt_Manager::build_modular_system_prompt(
 
 ## Distribution Model
 
-Designed for **git subtree inclusion** like Action Scheduler:
+Designed for **flexible distribution**:
+- **Composer**: Standard package manager installation
+- **Git Subtree**: Like Action Scheduler for WordPress plugins
 - No external dependencies
 - Version conflict resolution
 - Multiple plugins can include different versions safely
-- Automatic updates via `git subtree pull`
-
-## For Advanced Developers Only
-
-This library assumes you:
-- Know WordPress plugin development
-- Understand unified architecture patterns
-- Want backend functionality + unstyled UI component
-- Need to ship AI features quickly
-
-Not for beginners or general PHP projects.
+- Automatic updates via `git subtree pull` or `composer update`
 
 ### Adding New Providers
 
@@ -243,7 +254,7 @@ Each provider needs only 4 methods:
 
 ## Contributing
 
-Built by advanced developers, for advanced developers. PRs welcome for:
+Built by developers, for developers. PRs welcome for:
 - New provider implementations
 - Performance improvements
 - WordPress compatibility fixes
@@ -254,4 +265,4 @@ GPL v2 or later
 
 ---
 
-**[Chris Huber](https://chubes.net)** - For advanced WordPress developers who ship fast.
+**[Chris Huber](https://chubes.net)**
