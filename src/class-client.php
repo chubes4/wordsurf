@@ -38,6 +38,11 @@ class AI_HTTP_Client {
     private $plugin_context;
 
     /**
+     * AI type (llm, upscaling, generative, etc.)
+     */
+    private $ai_type;
+
+    /**
      * Whether the client is properly configured
      */
     private $is_configured = false;
@@ -45,9 +50,22 @@ class AI_HTTP_Client {
     /**
      * Constructor with unified normalizers and plugin context support
      *
-     * @param array $config Client configuration - should include 'plugin_context'
+     * @param array $config Client configuration - should include 'plugin_context' and 'ai_type'
      */
     public function __construct($config = array()) {
+        // Require ai_type parameter - no defaults
+        if (empty($config['ai_type'])) {
+            throw new Exception('ai_type parameter is required. Specify "llm", "upscaling", or "generative".');
+        }
+        
+        // Validate ai_type
+        $valid_types = array('llm', 'upscaling', 'generative');
+        if (!in_array($config['ai_type'], $valid_types)) {
+            throw new Exception('Invalid ai_type "' . $config['ai_type'] . '". Must be one of: ' . implode(', ', $valid_types));
+        }
+        
+        $this->ai_type = $config['ai_type'];
+        
         // Graceful fallback for missing plugin context
         if (empty($config['plugin_context'])) {
             $this->handle_missing_plugin_context();
@@ -57,33 +75,50 @@ class AI_HTTP_Client {
         $this->plugin_context = sanitize_key($config['plugin_context']);
         $this->is_configured = true;
         
-        // Auto-read from WordPress options if no provider config provided
-        if (empty($config['default_provider']) && class_exists('AI_HTTP_Options_Manager')) {
-            try {
-                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
-                $auto_config = $options_manager->get_client_config();
-                $config = array_merge($auto_config, $config);
-            } catch (Exception $e) {
-                $this->log_error('Failed to load options: ' . $e->getMessage());
-                $this->is_configured = false;
-                return;
-            }
-        }
         
-        // Set default configuration
-        $this->config = wp_parse_args($config, array(
-            'default_provider' => 'openai',
-            'timeout' => 30,
-            'retry_attempts' => 3,
-            'logging_enabled' => false
-        ));
+        // Store configuration - no operational defaults
+        $this->config = $config;
 
-        // Initialize unified normalizers
-        $this->request_normalizer = new AI_HTTP_Unified_Request_Normalizer();
-        $this->response_normalizer = new AI_HTTP_Unified_Response_Normalizer();
-        $this->streaming_normalizer = new AI_HTTP_Unified_Streaming_Normalizer();
-        $this->tool_results_normalizer = new AI_HTTP_Unified_Tool_Results_Normalizer();
-        $this->connection_test_normalizer = new AI_HTTP_Unified_Connection_Test_Normalizer();
+        // Initialize type-specific normalizers
+        $this->init_normalizers_for_type();
+    }
+
+    /**
+     * Initialize normalizers for the specified AI type
+     *
+     * @throws Exception If ai_type is not supported
+     */
+    private function init_normalizers_for_type() {
+        switch ($this->ai_type) {
+            case 'llm':
+                $this->request_normalizer = new AI_HTTP_Unified_Request_Normalizer();
+                $this->response_normalizer = new AI_HTTP_Unified_Response_Normalizer();
+                $this->streaming_normalizer = new AI_HTTP_Unified_Streaming_Normalizer();
+                $this->tool_results_normalizer = new AI_HTTP_Unified_Tool_Results_Normalizer();
+                $this->connection_test_normalizer = new AI_HTTP_Unified_Connection_Test_Normalizer();
+                break;
+                
+            case 'upscaling':
+                // Note: These classes don't exist yet, will be created later
+                $this->request_normalizer = new AI_HTTP_Upscaling_Request_Normalizer();
+                $this->response_normalizer = new AI_HTTP_Upscaling_Response_Normalizer();
+                $this->streaming_normalizer = null; // Upscaling typically doesn't use streaming
+                $this->tool_results_normalizer = null; // Upscaling doesn't use tools
+                $this->connection_test_normalizer = new AI_HTTP_Upscaling_Connection_Test_Normalizer();
+                break;
+                
+            case 'generative':
+                // Note: These classes don't exist yet, will be created later
+                $this->request_normalizer = new AI_HTTP_Generative_Request_Normalizer();
+                $this->response_normalizer = new AI_HTTP_Generative_Response_Normalizer();
+                $this->streaming_normalizer = null; // May add later for progressive generation
+                $this->tool_results_normalizer = null; // Generative typically doesn't use tools
+                $this->connection_test_normalizer = new AI_HTTP_Generative_Connection_Test_Normalizer();
+                break;
+                
+            default:
+                throw new Exception('Unsupported ai_type: ' . $this->ai_type);
+        }
     }
 
     /**
@@ -99,7 +134,17 @@ class AI_HTTP_Client {
             return $this->create_error_response('AI HTTP Client is not properly configured - plugin context is required');
         }
         
-        $provider_name = $provider_name ?: $this->config['default_provider'];
+        // Get provider from options if not specified
+        if (!$provider_name) {
+            if (class_exists('AI_HTTP_Options_Manager') && !empty($this->plugin_context)) {
+                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+                $provider_name = $options_manager->get_selected_provider();
+            }
+            
+            if (empty($provider_name)) {
+                throw new Exception('No provider configured. Please select a provider in your plugin settings.');
+            }
+        }
         
         try {
             // Step 1: Validate standard input
@@ -139,13 +184,28 @@ class AI_HTTP_Client {
      * @throws Exception If streaming fails
      */
     public function send_streaming_request($request, $provider_name = null, $completion_callback = null) {
+        // Check if streaming is supported for this AI type
+        if ($this->streaming_normalizer === null) {
+            throw new Exception('Streaming is not supported for ai_type: ' . $this->ai_type);
+        }
+        
         // Return early if client is not properly configured
         if (!$this->is_configured) {
             AI_HTTP_Plugin_Context_Helper::log_context_error('Streaming request failed - client not properly configured', 'AI_HTTP_Client');
             return;
         }
         
-        $provider_name = $provider_name ?: $this->config['default_provider'];
+        // Get provider from options if not specified
+        if (!$provider_name) {
+            if (class_exists('AI_HTTP_Options_Manager') && !empty($this->plugin_context)) {
+                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+                $provider_name = $options_manager->get_selected_provider();
+            }
+            
+            if (empty($provider_name)) {
+                throw new Exception('No provider configured. Please select a provider in your plugin settings.');
+            }
+        }
 
         try {
             // Step 1: Validate standard input
@@ -184,7 +244,22 @@ class AI_HTTP_Client {
      * @throws Exception If continuation fails
      */
     public function continue_with_tool_results($context_data, $tool_results, $provider_name = null, $completion_callback = null) {
-        $provider_name = $provider_name ?: $this->config['default_provider'];
+        // Check if tool results are supported for this AI type
+        if ($this->tool_results_normalizer === null) {
+            throw new Exception('Tool results are not supported for ai_type: ' . $this->ai_type);
+        }
+        
+        // Get provider from options if not specified
+        if (!$provider_name) {
+            if (class_exists('AI_HTTP_Options_Manager') && !empty($this->plugin_context)) {
+                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+                $provider_name = $options_manager->get_selected_provider();
+            }
+            
+            if (empty($provider_name)) {
+                throw new Exception('No provider configured. Please select a provider in your plugin settings.');
+            }
+        }
         
         try {
             // Step 1: Get provider instance
@@ -219,7 +294,17 @@ class AI_HTTP_Client {
      * @return array Standardized test result
      */
     public function test_connection($provider_name = null) {
-        $provider_name = $provider_name ?: $this->config['default_provider'];
+        // Get provider from options if not specified
+        if (!$provider_name) {
+            if (class_exists('AI_HTTP_Options_Manager') && !empty($this->plugin_context)) {
+                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+                $provider_name = $options_manager->get_selected_provider();
+            }
+            
+            if (empty($provider_name)) {
+                throw new Exception('No provider configured. Please select a provider in your plugin settings.');
+            }
+        }
         
         try {
             // Step 1: Validate provider configuration
@@ -254,7 +339,17 @@ class AI_HTTP_Client {
      * @return array Available models
      */
     public function get_available_models($provider_name = null) {
-        $provider_name = $provider_name ?: $this->config['default_provider'];
+        // Get provider from options if not specified
+        if (!$provider_name) {
+            if (class_exists('AI_HTTP_Options_Manager') && !empty($this->plugin_context)) {
+                $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+                $provider_name = $options_manager->get_selected_provider();
+            }
+            
+            if (empty($provider_name)) {
+                throw new Exception('No provider configured. Please select a provider in your plugin settings.');
+            }
+        }
         
         try {
             $provider = $this->get_provider($provider_name);
@@ -282,32 +377,93 @@ class AI_HTTP_Client {
         
         $provider_config = $this->get_provider_config($provider_name);
         
-        switch (strtolower($provider_name)) {
-            case 'openai':
-                $this->providers[$provider_name] = new AI_HTTP_OpenAI_Provider($provider_config);
+        // Route to appropriate provider based on ai_type
+        switch ($this->ai_type) {
+            case 'llm':
+                $this->providers[$provider_name] = $this->create_llm_provider($provider_name, $provider_config);
                 break;
-            
-            case 'gemini':
-                $this->providers[$provider_name] = new AI_HTTP_Gemini_Provider($provider_config);
+                
+            case 'upscaling':
+                $this->providers[$provider_name] = $this->create_upscaling_provider($provider_name, $provider_config);
                 break;
-            
-            case 'anthropic':
-                $this->providers[$provider_name] = new AI_HTTP_Anthropic_Provider($provider_config);
+                
+            case 'generative':
+                $this->providers[$provider_name] = $this->create_generative_provider($provider_name, $provider_config);
                 break;
-            
-            case 'grok':
-                $this->providers[$provider_name] = new AI_HTTP_Grok_Provider($provider_config);
-                break;
-            
-            case 'openrouter':
-                $this->providers[$provider_name] = new AI_HTTP_OpenRouter_Provider($provider_config);
-                break;
-            
+                
             default:
-                throw new Exception("Provider '{$provider_name}' not supported in unified architecture");
+                throw new Exception("Unsupported ai_type: {$this->ai_type}");
         }
         
         return $this->providers[$provider_name];
+    }
+
+    /**
+     * Create LLM provider instance
+     *
+     * @param string $provider_name Provider name
+     * @param array $provider_config Provider configuration
+     * @return object Provider instance
+     * @throws Exception If provider not supported
+     */
+    private function create_llm_provider($provider_name, $provider_config) {
+        switch (strtolower($provider_name)) {
+            case 'openai':
+                return new AI_HTTP_OpenAI_Provider($provider_config);
+            
+            case 'gemini':
+                return new AI_HTTP_Gemini_Provider($provider_config);
+            
+            case 'anthropic':
+                return new AI_HTTP_Anthropic_Provider($provider_config);
+            
+            case 'grok':
+                return new AI_HTTP_Grok_Provider($provider_config);
+            
+            case 'openrouter':
+                return new AI_HTTP_OpenRouter_Provider($provider_config);
+            
+            default:
+                throw new Exception("LLM provider '{$provider_name}' not supported");
+        }
+    }
+
+    /**
+     * Create upscaling provider instance
+     *
+     * @param string $provider_name Provider name
+     * @param array $provider_config Provider configuration
+     * @return object Provider instance
+     * @throws Exception If provider not supported
+     */
+    private function create_upscaling_provider($provider_name, $provider_config) {
+        switch (strtolower($provider_name)) {
+            case 'upsampler':
+                // Note: This class doesn't exist yet, will be created later
+                return new AI_HTTP_Upsampler_Provider($provider_config);
+            
+            default:
+                throw new Exception("Upscaling provider '{$provider_name}' not supported");
+        }
+    }
+
+    /**
+     * Create generative provider instance
+     *
+     * @param string $provider_name Provider name
+     * @param array $provider_config Provider configuration
+     * @return object Provider instance
+     * @throws Exception If provider not supported
+     */
+    private function create_generative_provider($provider_name, $provider_config) {
+        switch (strtolower($provider_name)) {
+            case 'stable-diffusion':
+                // Note: This class doesn't exist yet, will be created later
+                return new AI_HTTP_StableDiffusion_Provider($provider_config);
+            
+            default:
+                throw new Exception("Generative provider '{$provider_name}' not supported");
+        }
     }
 
     /**
@@ -372,5 +528,167 @@ class AI_HTTP_Client {
      */
     public function is_configured() {
         return $this->is_configured;
+    }
+
+
+    // === STEP-AWARE REQUEST METHODS ===
+
+    /**
+     * Send a request using step-specific configuration
+     * 
+     * This convenience method automatically loads the step configuration
+     * and merges it with the provided request parameters.
+     *
+     * @param string $step_key Step identifier
+     * @param array $request Base request parameters
+     * @return array Standardized response
+     */
+    public function send_step_request($step_key, $request) {
+        // Return error if client is not properly configured
+        if (!$this->is_configured) {
+            return $this->create_error_response('AI HTTP Client is not properly configured - plugin context is required');
+        }
+        
+        try {
+            // Load step configuration
+            $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+            $step_config = $options_manager->get_step_configuration($step_key);
+            
+            if (empty($step_config)) {
+                return $this->create_error_response("No configuration found for step: {$step_key}");
+            }
+            
+            // Merge step configuration with request
+            $enhanced_request = $this->merge_step_config_with_request($request, $step_config);
+            
+            // Get provider from step config
+            $provider = $step_config['provider'] ?? null;
+            if (!$provider) {
+                return $this->create_error_response("No provider configured for step: {$step_key}");
+            }
+            
+            // Send request using step-configured provider  
+            return $this->send_request($enhanced_request, $provider);
+            
+        } catch (Exception $e) {
+            return $this->create_error_response("Step request failed: " . $e->getMessage(), $step_key);
+        }
+    }
+    
+    /**
+     * Get step configuration for debugging/inspection
+     *
+     * @param string $step_key Step identifier
+     * @return array Step configuration
+     */
+    public function get_step_configuration($step_key) {
+        if (!$this->is_configured) {
+            return array();
+        }
+        
+        $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+        return $options_manager->get_step_configuration($step_key);
+    }
+    
+    /**
+     * Check if a step has configuration
+     *
+     * @param string $step_key Step identifier
+     * @return bool True if step is configured
+     */
+    public function has_step_configuration($step_key) {
+        if (!$this->is_configured) {
+            return false;
+        }
+        
+        $options_manager = new AI_HTTP_Options_Manager($this->plugin_context);
+        return $options_manager->has_step_configuration($step_key);
+    }
+    
+    /**
+     * Merge step configuration with request parameters
+     *
+     * @param array $request Base request
+     * @param array $step_config Step configuration
+     * @return array Enhanced request
+     */
+    private function merge_step_config_with_request($request, $step_config) {
+        // Start with the base request
+        $enhanced_request = $request;
+        
+        // Override with step-specific settings (request params take precedence)
+        if (isset($step_config['model']) && !isset($request['model'])) {
+            $enhanced_request['model'] = $step_config['model'];
+        }
+        
+        if (isset($step_config['temperature']) && !isset($request['temperature'])) {
+            $enhanced_request['temperature'] = $step_config['temperature'];
+        }
+        
+        if (isset($step_config['max_tokens']) && !isset($request['max_tokens'])) {
+            $enhanced_request['max_tokens'] = $step_config['max_tokens'];
+        }
+        
+        if (isset($step_config['top_p']) && !isset($request['top_p'])) {
+            $enhanced_request['top_p'] = $step_config['top_p'];
+        }
+        
+        // Handle step-specific system prompt
+        if (isset($step_config['system_prompt']) && !empty($step_config['system_prompt'])) {
+            // Ensure messages array exists
+            if (!isset($enhanced_request['messages'])) {
+                $enhanced_request['messages'] = array();
+            }
+            
+            // Check if there's already a system message
+            $has_system_message = false;
+            foreach ($enhanced_request['messages'] as $message) {
+                if (isset($message['role']) && $message['role'] === 'system') {
+                    $has_system_message = true;
+                    break;
+                }
+            }
+            
+            // Add step system prompt if no system message exists
+            if (!$has_system_message) {
+                array_unshift($enhanced_request['messages'], array(
+                    'role' => 'system',
+                    'content' => $step_config['system_prompt']
+                ));
+            }
+        }
+        
+        // Handle step-specific tools
+        if (isset($step_config['tools_enabled']) && is_array($step_config['tools_enabled']) && !isset($request['tools'])) {
+            $enhanced_request['tools'] = array();
+            foreach ($step_config['tools_enabled'] as $tool_name) {
+                // Convert tool names to tool definitions
+                $enhanced_request['tools'][] = $this->convert_tool_name_to_definition($tool_name);
+            }
+        }
+        
+        return $enhanced_request;
+    }
+    
+    /**
+     * Convert tool name to tool definition
+     *
+     * @param string $tool_name Tool name  
+     * @return array Tool definition
+     */
+    private function convert_tool_name_to_definition($tool_name) {
+        // Map common tool names to definitions
+        $tool_definitions = array(
+            'web_search_preview' => array(
+                'type' => 'web_search_preview',
+                'search_context_size' => 'low'
+            ),
+            'web_search' => array(
+                'type' => 'web_search_preview',
+                'search_context_size' => 'medium'
+            )
+        );
+        
+        return $tool_definitions[$tool_name] ?? array('type' => $tool_name);
     }
 }
