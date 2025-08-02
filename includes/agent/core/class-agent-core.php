@@ -65,6 +65,7 @@ class Wordsurf_Agent_Core {
         $options_manager = new AI_HTTP_Options_Manager('wordsurf');
         $config = $options_manager->get_client_config();
         $config['plugin_context'] = 'wordsurf';
+        $config['ai_type'] = 'llm';
         
         $this->ai_client = new AI_HTTP_Client($config);
         
