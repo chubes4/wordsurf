@@ -31,11 +31,11 @@ class Wordsurf_Agent_Core {
      */
     private $tool_manager;
     /**
-     * AI HTTP Client
+     * Current provider name for AI requests
      *
-     * @var AI_HTTP_Client
+     * @var string
      */
-    private $ai_client;
+    private $current_provider = 'openai';
     /**
      * In-memory message history (per page load)
      *
@@ -61,13 +61,8 @@ class Wordsurf_Agent_Core {
         // Tools are now registered globally at plugin initialization
         // No need to register per-instance
         
-        // Configure AI HTTP Client with WordPress settings
-        $options_manager = new AI_HTTP_Options_Manager('wordsurf');
-        $config = $options_manager->get_client_config();
-        $config['plugin_context'] = 'wordsurf';
-        $config['ai_type'] = 'llm';
-        
-        $this->ai_client = new AI_HTTP_Client($config);
+        // Get current provider from WordPress options (filter-based architecture)
+        $this->current_provider = get_option('wordsurf_ai_provider', 'openai');
         
         $this->reset_message_history();
     }
@@ -142,36 +137,53 @@ class Wordsurf_Agent_Core {
             Wordsurf_Post_Context_Helper::set_current_post_id($post_id);
         }
 
-        // Build system prompt using AI HTTP Client's PromptManager
+        // Build system prompt with context and available tools
         // Note: post_id is sent for context setup since get_the_ID() doesn't work in AJAX context
         $context = $this->context_manager->get_context($post_id);
+        
+        // Load all Wordsurf tools on-demand for this request
+        $supported_tools = ['read_post', 'edit_post', 'insert_content', 'write_to_post'];
+        foreach ($supported_tools as $tool_name) {
+            $this->tool_manager->load_tool($tool_name);
+        }
+        
         $available_tools = $this->tool_manager->get_tools();
         $system_prompt = $this->system_prompt->build_prompt($context, $available_tools);
 
         $tool_schemas = $this->tool_manager->get_tool_schemas();
 
-        // Create standardized request using AI HTTP Client's PromptManager
-        // Model is now handled automatically by the AI HTTP Client library
+        // Build messages array with system prompt
+        $messages = [];
+        if (!empty($system_prompt)) {
+            $messages[] = ['role' => 'system', 'content' => $system_prompt];
+        }
+        // Add conversation history
+        $messages = array_merge($messages, $this->message_history);
+
+        // Create standardized request for filter-based architecture
         $request = [
-            'messages' => AI_HTTP_Prompt_Manager::build_messages($system_prompt, '', $this->message_history),
+            'messages' => $messages,
             'tools' => $tool_schemas,
-            // No need to specify model - it will fall back to configured model
+            'model' => get_option('wordsurf_ai_model', ''), // Let provider choose if empty
         ];
 
-        // Library handles provider selection, model selection, and all provider-specific logic
-        error_log('Wordsurf DEBUG: Making AI streaming request via library');
+        // Use filter-based AI request with streaming
+        error_log('Wordsurf DEBUG: Making AI streaming request via filter system');
         
-        // Stream the response with integrated tool processing
         try {
-            $full_response = $this->ai_client->send_streaming_request($request, null, [$this, 'handle_stream_completion']);
+            $response = apply_filters('ai_request', $request, $this->current_provider, [$this, 'handle_stream_completion']);
+            
+            if (!$response['success']) {
+                error_log('Wordsurf DEBUG: AI request failed: ' . $response['error']);
+                throw new Exception('AI request failed: ' . $response['error']);
+            }
+            
+            $full_response = $response['data'];
             error_log('Wordsurf DEBUG: Streaming request completed successfully');
         } catch (Exception $e) {
             error_log('Wordsurf DEBUG: Streaming request failed: ' . $e->getMessage());
             throw $e;
         }
-        
-        // Continuation state is now automatically managed by the library
-        error_log('Wordsurf DEBUG: Continuation state automatically stored by library');
         
         return $full_response;
     }
@@ -187,15 +199,12 @@ class Wordsurf_Agent_Core {
         error_log('Wordsurf DEBUG: Full response length: ' . strlen($full_response) . ' bytes');
         error_log('Wordsurf DEBUG: Full response preview: ' . substr($full_response, 0, 500) . '...');
         
-        // Continuation state is automatically managed by the library
-        error_log('Wordsurf DEBUG: Library automatically manages continuation state');
+        // Extract tool calls from response (simple pattern matching for now)
+        $tool_calls = $this->extract_tool_calls_from_response($full_response);
         
-        // Use AI HTTP Client library to extract tool calls (provider-agnostic)
-        $tool_calls = $this->ai_client->extract_tool_calls($full_response);
+        error_log('Wordsurf DEBUG: Extracted ' . count($tool_calls) . ' tool calls from response');
         
-        error_log('Wordsurf DEBUG: AI HTTP Client extracted ' . count($tool_calls) . ' tool calls');
-        
-        // Execute tools using the ToolExecutor (which will call our registered filters)
+        // Execute tools using the new filter-based system
         if (!empty($tool_calls)) {
             $this->pending_tool_calls = [];
             
@@ -209,11 +218,11 @@ class Wordsurf_Agent_Core {
                     $arguments = json_decode($arguments, true) ?: [];
                 }
                 
-                error_log("Wordsurf DEBUG: Executing tool '{$tool_name}' via AI HTTP Client library");
+                error_log("Wordsurf DEBUG: Executing tool '{$tool_name}' via filter-based system");
                 
-                // Use the library's ToolExecutor which will call our registered WordPress filter
-                $result = AI_HTTP_Tool_Executor::execute_tool($tool_name, $arguments, $call_id);
-                error_log("Wordsurf DEBUG (AgentCore): ToolExecutor returned for '{$tool_name}': " . json_encode($result));
+                // Use the new filter-based tool execution
+                $result = ai_http_execute_tool($tool_name, $arguments);
+                error_log("Wordsurf DEBUG (AgentCore): Tool execution returned for '{$tool_name}': " . json_encode($result));
                 
                 // Store in the same format for backward compatibility
                 $this->pending_tool_calls[] = [
@@ -260,22 +269,46 @@ class Wordsurf_Agent_Core {
     }
 
     /**
-     * Continue conversation with tool results - completely provider-agnostic
-     * Library handles all provider-specific continuation logic
+     * Continue conversation with tool results using filter-based architecture
      *
      * @param array $tool_results Array of tool results from user interactions
      * @return string The full response from the continuation
      */
     public function continue_with_tool_results($tool_results) {
-        error_log('Wordsurf DEBUG: Starting tool result continuation via library');
+        error_log('Wordsurf DEBUG: Starting tool result continuation via filter system');
         
         try {
-            // Use library's provider-agnostic continuation method
-            // Library handles: OpenAI response IDs vs Anthropic conversation rebuilding
-            $full_response = $this->ai_client->continue_with_tool_results($tool_results, null, [$this, 'handle_stream_completion']);
+            // Build tool result messages for continuation
+            $tool_result_messages = [];
+            foreach ($tool_results as $result) {
+                $tool_result_messages[] = [
+                    'role' => 'tool',
+                    'name' => $result['tool_name'],
+                    'content' => json_encode($result['result']),
+                    'tool_call_id' => $result['tool_call_id']
+                ];
+            }
+            
+            // Add tool results to message history for continuation
+            $messages = array_merge($this->message_history, $tool_result_messages);
+            
+            // Create continuation request
+            $request = [
+                'messages' => $messages,
+                'tools' => $this->tool_manager->get_tool_schemas(),
+                'model' => get_option('wordsurf_ai_model', ''),
+            ];
+            
+            // Send continuation request via filters
+            $response = apply_filters('ai_request', $request, $this->current_provider, [$this, 'handle_stream_completion']);
+            
+            if (!$response['success']) {
+                error_log('Wordsurf DEBUG: Tool result continuation failed: ' . $response['error']);
+                throw new Exception('Tool result continuation failed: ' . $response['error']);
+            }
             
             error_log('Wordsurf DEBUG: Tool result continuation completed successfully');
-            return $full_response;
+            return $response['data'];
             
         } catch (Exception $e) {
             error_log('Wordsurf DEBUG: Tool result continuation failed: ' . $e->getMessage());
@@ -289,7 +322,9 @@ class Wordsurf_Agent_Core {
      * @return bool True if continuation is possible
      */
     public function can_continue() {
-        return $this->ai_client->can_continue();
+        // In filter-based architecture, continuation is always possible
+        // as long as we have conversation history
+        return !empty($this->message_history);
     }
 
     /**
@@ -299,5 +334,60 @@ class Wordsurf_Agent_Core {
      */
     private function has_pending_tool_calls() {
         return !empty($this->pending_tool_calls);
+    }
+
+    /**
+     * Extract tool calls from AI response
+     * 
+     * Simple pattern matching for OpenAI and Anthropic tool call formats
+     *
+     * @param string $response The full AI response
+     * @return array Array of tool calls
+     */
+    private function extract_tool_calls_from_response($response) {
+        $tool_calls = [];
+        
+        // Try to parse as JSON first (streaming responses might be JSON)
+        $json_response = json_decode($response, true);
+        if (is_array($json_response)) {
+            // Handle OpenAI format
+            if (isset($json_response['choices'][0]['message']['tool_calls'])) {
+                return $json_response['choices'][0]['message']['tool_calls'];
+            }
+            
+            // Handle Anthropic format
+            if (isset($json_response['content'])) {
+                foreach ($json_response['content'] as $content_block) {
+                    if (isset($content_block['type']) && $content_block['type'] === 'tool_use') {
+                        $tool_calls[] = [
+                            'id' => $content_block['id'],
+                            'function' => [
+                                'name' => $content_block['name'],
+                                'arguments' => json_encode($content_block['input'])
+                            ]
+                        ];
+                    }
+                }
+            }
+        } else {
+            // Handle streaming response format - look for tool call patterns
+            // This is a simplified extraction for basic tool calls
+            if (preg_match_all('/\{"type":\s*"tool_use"[^}]*\}/', $response, $matches)) {
+                foreach ($matches[0] as $match) {
+                    $tool_data = json_decode($match, true);
+                    if ($tool_data && isset($tool_data['name'])) {
+                        $tool_calls[] = [
+                            'id' => $tool_data['id'] ?? uniqid('tool_'),
+                            'function' => [
+                                'name' => $tool_data['name'],
+                                'arguments' => json_encode($tool_data['input'] ?? [])
+                            ]
+                        ];
+                    }
+                }
+            }
+        }
+        
+        return $tool_calls;
     }
 } 

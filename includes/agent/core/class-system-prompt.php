@@ -2,7 +2,7 @@
 /**
  * Wordsurf System Prompt Manager
  *
- * Integrates with AI HTTP Client's modular prompt system
+ * Simplified system prompt building for filter-based architecture
  *
  * @package Wordsurf
  * @since   0.1.0
@@ -15,54 +15,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Wordsurf_System_Prompt {
     
     /**
-     * Track if initialization has already been done
-     */
-    private static $initialized = false;
-    
-    /**
-     * Constructor - Initialize prompt integration
+     * Constructor - Simplified for filter-based architecture
      */
     public function __construct() {
-        self::init();
+        // No initialization needed in filter-based architecture
     }
-    
+
     /**
-     * Initialize prompt integration
-     */
-    public static function init() {
-        // Prevent duplicate initialization
-        if (self::$initialized) {
-            return;
-        }
-        self::$initialized = true;
-        add_action('init', [__CLASS__, 'register_tool_definitions'], 10);
-        add_action('init', [__CLASS__, 'set_default_enabled_tools'], 20);
-        add_filter('ai_http_client_current_plugin', [__CLASS__, 'set_current_plugin'], 10);
-        add_filter('ai_http_client_inject_context', [__CLASS__, 'inject_post_context'], 10, 2);
-        
-        error_log('Wordsurf DEBUG: ai_http_client_inject_context filter registered');
-    }
-    
-    /**
-     * Set current plugin identifier for tool registration
-     */
-    public static function set_current_plugin($plugin) {
-        return 'wordsurf';
-    }
-    
-    /**
-     * Inject post context into system prompt
+     * Add post context to a system prompt
      *
-     * @param string $prompt Current system prompt
+     * @param string $prompt Base system prompt
      * @param array $context Context data including post information
      * @return string System prompt with post context included
      */
-    public static function inject_post_context($prompt, $context) {
-        error_log('Wordsurf DEBUG: inject_post_context filter called with context: ' . json_encode($context));
-        
+    private function inject_post_context($prompt, $context) {
         // Only inject context if we have context data
         if (empty($context)) {
-            error_log('Wordsurf DEBUG: inject_post_context returning early - context is empty');
             return $prompt;
         }
         
@@ -135,77 +103,9 @@ class Wordsurf_System_Prompt {
     }
     
     /**
-     * Register Wordsurf tool definitions with AI HTTP Client
-     */
-    public static function register_tool_definitions() {
-        // Register edit_post tool
-        AI_HTTP_Prompt_Manager::register_tool_definition(
-            'edit_post',
-            "### edit_post tool\n" .
-            "- Use to make specific edits to the current post content\n" .
-            "- Use when you need to modify existing text, paragraphs, or sections\n" .
-            "- Use for surgical changes like fixing typos, improving sentences, or updating specific parts\n" .
-            "- The tool will search for the specified text and replace it with your new content\n" .
-            "- CRITICAL: NEVER modify URLs, links, images, or embeds unless specifically asked\n" .
-            "- PRESERVE all HTML attributes, href values, src values, and link structures\n" .
-            "- This is the PRIMARY tool for making content changes",
-            ['priority' => 1, 'category' => 'content_editing']
-        );
-        
-        // Register insert_content tool
-        AI_HTTP_Prompt_Manager::register_tool_definition(
-            'insert_content',
-            "### insert_content tool\n" .
-            "- Use to add new content at specific positions in the post\n" .
-            "- Use when you need to insert new paragraphs, sections, or content blocks\n" .
-            "- Use for adding content before or after existing sections\n" .
-            "- Specify the position (before/after) and the target text to insert around",
-            ['priority' => 2, 'category' => 'content_editing']
-        );
-        
-        // Register write_to_post tool
-        AI_HTTP_Prompt_Manager::register_tool_definition(
-            'write_to_post',
-            "### write_to_post tool\n" .
-            "- Use to completely rewrite the entire post content\n" .
-            "- Use when you need to create a completely new version of the post\n" .
-            "- Use for major rewrites, style changes, or complete content overhauls\n" .
-            "- This replaces the entire post content with your new version\n" .
-            "- CRITICAL: When using write_to_post, do NOT include the full new content in your response message - just execute the tool",
-            ['priority' => 3, 'category' => 'content_editing']
-        );
-        
-        // Register read_post tool
-        AI_HTTP_Prompt_Manager::register_tool_definition(
-            'read_post',
-            "### read_post tool\n" .
-            "- Use to read content from OTHER posts or pages (not the current post)\n" .
-            "- Use when you need to reference or link to other content on the site\n" .
-            "- Use for cross-referencing or gathering information from different posts\n" .
-            "- Do NOT use for the current post - its content is already available in the context\n" .
-            "- Do not use to retrieve information that is already present in the initial Context provided to you (like the post title or ID)\n" .
-            "- CRITICAL: The current post content is ALREADY provided in the context above - DO NOT use read_post for the current post",
-            ['priority' => 4, 'category' => 'content_reading']
-        );
-    }
-    
-    /**
-     * Set default enabled tools for Wordsurf
-     */
-    public static function set_default_enabled_tools() {
-        $current_tools = AI_HTTP_Prompt_Manager::get_enabled_tools('wordsurf');
-        
-        // Set defaults if no tools are enabled yet
-        if (empty($current_tools)) {
-            $default_tools = ['edit_post', 'insert_content', 'write_to_post', 'read_post'];
-            AI_HTTP_Prompt_Manager::set_enabled_tools($default_tools, 'wordsurf');
-        }
-    }
-    
-    /**
      * Get Wordsurf's base system prompt
      */
-    public static function get_base_prompt() {
+    public function get_base_prompt() {
         return "You are a WordPress content assistant that helps users create, edit, and manage WordPress content. You have access to tools that allow you to read and analyze WordPress posts and pages.
 
 # Agentic Instructions
@@ -260,39 +160,31 @@ HOWEVER: Keep your planning messages CONCISE. Describe your approach without quo
     }
     
     /**
-     * Build complete system prompt using modular AI HTTP Client system
+     * Build complete system prompt for filter-based architecture
+     * 
+     * @param array $post_context Context data including post information
+     * @param array $available_tools Available tool definitions
+     * @return string Complete system prompt with context
      */
     public function build_prompt($post_context = [], $available_tools = []) {
-        // Get user's custom system prompt from UI component
-        $options_manager = new AI_HTTP_Options_Manager('wordsurf');
-        $provider = $options_manager->get_selected_provider();
-        $user_system_prompt = $options_manager->get_provider_setting($provider, 'system_prompt', '');
+        // Get user's custom system prompt from WordPress options
+        $user_system_prompt = get_option('wordsurf_ai_system_prompt', '');
         
         // Use user's system prompt if provided, otherwise fall back to Wordsurf's base prompt
-        $base_prompt = !empty($user_system_prompt) ? $user_system_prompt : self::get_base_prompt();
+        $base_prompt = !empty($user_system_prompt) ? $user_system_prompt : $this->get_base_prompt();
         
-        // Pass the original context structure (don't flatten it)
-        // The filter expects the nested structure with current_post
-        $context = $post_context;
+        // Add tool descriptions if available
+        if (!empty($available_tools)) {
+            $base_prompt .= "\n\n# Available Tools\n\nYou have access to the following tools:";
+            foreach ($available_tools as $tool_name => $tool_info) {
+                $base_prompt .= "\n- **{$tool_name}**: " . ($tool_info['description'] ?? 'No description available');
+            }
+        }
         
-        // Debug: Log the context being passed to the prompt builder
-        error_log('Wordsurf DEBUG: Context passed to build_modular_system_prompt: ' . json_encode($context));
+        // Inject post context
+        $final_prompt = $this->inject_post_context($base_prompt, $post_context);
         
-        // Use modular prompt builder with Wordsurf-specific settings
-        $final_prompt = AI_HTTP_Prompt_Manager::build_modular_system_prompt(
-            $base_prompt,
-            $context,
-            [
-                'include_tools' => true,
-                'tool_context' => 'wordsurf',
-                'enabled_tools' => array_keys($available_tools),
-                'sections' => []
-            ]
-        );
-        
-        // Debug: Log the final prompt being sent
         error_log('Wordsurf DEBUG: Final system prompt length: ' . strlen($final_prompt) . ' characters');
-        error_log('Wordsurf DEBUG: Final system prompt preview: ' . substr($final_prompt, 0, 500) . '...');
         
         return $final_prompt;
     }
